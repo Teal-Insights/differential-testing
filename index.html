@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proving the Numbers Match | Teal Insights Whitepaper</title>
+<style>
+  :root {
+    --teal: #0e6e6b;
+    --teal-dark: #0a4f4d;
+    --teal-pale: #eaf4f3;
+    --ink: #1f2933;
+    --ink-soft: #4a5561;
+    --rule: #d7dee2;
+    --paper: #ffffff;
+    --ground: #f2f4f5;
+    --accent-gold: #b8860b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: Georgia, "Times New Roman", serif;
+    color: var(--ink);
+    background: var(--ground);
+    line-height: 1.65;
+    font-size: 17px;
+  }
+  .page {
+    max-width: 860px;
+    margin: 0 auto;
+    background: var(--paper);
+    box-shadow: 0 0 24px rgba(31, 41, 51, 0.08);
+  }
+
+  /* ---------- Cover band ---------- */
+  .cover {
+    background: linear-gradient(135deg, var(--teal-dark) 0%, var(--teal) 70%);
+    color: #ffffff;
+    padding: 56px 64px 48px 64px;
+  }
+  .brandline {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid rgba(255,255,255,0.35);
+    padding-bottom: 14px;
+    margin-bottom: 42px;
+  }
+  .wordmark {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.28em;
+    font-size: 14px;
+    text-transform: uppercase;
+  }
+  .doc-type {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.85);
+  }
+  .cover h1 {
+    font-family: Georgia, serif;
+    font-weight: 400;
+    font-size: 40px;
+    line-height: 1.2;
+    margin-bottom: 14px;
+  }
+  .cover .subtitle {
+    font-size: 19px;
+    font-style: italic;
+    color: rgba(255,255,255,0.9);
+    max-width: 620px;
+    margin-bottom: 40px;
+  }
+  .cover-meta {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    color: rgba(255,255,255,0.85);
+    display: flex;
+    gap: 34px;
+    flex-wrap: wrap;
+  }
+  .cover-meta span strong {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.6);
+    margin-bottom: 2px;
+  }
+  .draft-banner {
+    background: var(--accent-gold);
+    color: #ffffff;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    text-align: center;
+    padding: 7px 0;
+  }
+
+  /* ---------- Body layout ---------- */
+  .content { padding: 52px 64px 40px 64px; }
+  section { margin-bottom: 46px; }
+
+  h2 {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--teal-dark);
+    border-bottom: 2px solid var(--teal);
+    padding-bottom: 8px;
+    margin-bottom: 22px;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  h2 .secnum {
+    font-size: 22px;
+    color: var(--teal);
+    font-weight: 700;
+    letter-spacing: 0;
+  }
+  h3 {
+    font-family: Georgia, serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 26px 0 8px 0;
+  }
+  p { margin-bottom: 14px; }
+  p:last-child { margin-bottom: 0; }
+  a { color: var(--teal); text-decoration: none; border-bottom: 1px solid rgba(14,110,107,0.35); }
+  a:hover { border-bottom-color: var(--teal); }
+  strong { color: var(--ink); }
+  em { color: var(--ink-soft); }
+  code {
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 0.85em;
+    background: var(--teal-pale);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  ul { margin: 0 0 14px 24px; }
+  li { margin-bottom: 10px; }
+
+  /* ---------- Executive summary ---------- */
+  .exec-box {
+    background: var(--teal-pale);
+    border-left: 5px solid var(--teal);
+    padding: 28px 32px;
+  }
+  .exec-box p { margin-bottom: 13px; }
+  .exec-box p:last-child { margin-bottom: 0; }
+
+  /* ---------- Stat band ---------- */
+  .stat-band {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--rule);
+    margin: 30px 0 6px 0;
+  }
+  .stat {
+    flex: 1;
+    text-align: center;
+    padding: 22px 14px 18px 14px;
+    border-right: 1px solid var(--rule);
+  }
+  .stat:last-child { border-right: none; }
+  .stat .num {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--teal-dark);
+    line-height: 1.15;
+  }
+  .stat .lbl {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-top: 6px;
+    line-height: 1.4;
+  }
+
+  /* ---------- Case highlight ---------- */
+  .case-box {
+    background: var(--teal-pale);
+    border-left: 5px solid var(--teal);
+    padding: 20px 26px 16px 26px;
+    margin: 22px 0 6px 0;
+  }
+  .case-box .case-title {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--teal-dark);
+    margin-bottom: 10px;
+  }
+  .case-box .bignums strong {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 23px;
+    color: var(--teal-dark);
+  }
+  .case-box ul { margin-bottom: 0; }
+  .case-box li { font-size: 15.5px; margin-bottom: 6px; }
+
+  /* ---------- Pull quote ---------- */
+  .pull {
+    font-size: 21px;
+    font-style: italic;
+    color: var(--teal-dark);
+    border-left: 4px solid var(--teal);
+    padding: 6px 0 6px 24px;
+    margin: 26px 12px 26px 12px;
+    line-height: 1.5;
+  }
+
+  /* ---------- Figure ---------- */
+  figure {
+    margin: 28px 0;
+    border: 1px solid var(--rule);
+    padding: 26px 18px 14px 18px;
+    background: #fcfdfd;
+    overflow-x: auto;
+  }
+  figcaption {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    text-align: center;
+    margin-top: 12px;
+    letter-spacing: 0.03em;
+  }
+  figcaption strong { color: var(--teal-dark); }
+
+  /* ---------- Design element cards ---------- */
+  .design-item { margin-bottom: 20px; }
+  .design-item .lead {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-weight: 700;
+    font-size: 15.5px;
+    color: var(--teal-dark);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  /* ---------- Limits table ---------- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 15.5px;
+    margin: 18px 0;
+  }
+  th {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: left;
+    color: #ffffff;
+    background: var(--teal-dark);
+    padding: 10px 14px;
+  }
+  td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: #f7fafa; }
+
+  /* ---------- Footer ---------- */
+  .refs { font-size: 15px; color: var(--ink-soft); }
+  .refs li { margin-bottom: 6px; }
+  footer {
+    background: var(--teal-dark);
+    color: rgba(255,255,255,0.85);
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    padding: 20px 64px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* ---------- Print ---------- */
+  @media print {
+    body { background: #ffffff; font-size: 12pt; }
+    .page { box-shadow: none; max-width: none; }
+    .cover, footer, th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    section { page-break-inside: avoid; }
+  }
+  @media (max-width: 700px) {
+    .cover, .content { padding-left: 26px; padding-right: 26px; }
+    footer { padding-left: 26px; padding-right: 26px; }
+    .stat-band { flex-direction: column; }
+    .stat { border-right: none; border-bottom: 1px solid var(--rule); }
+    .stat:last-child { border-bottom: none; }
+    .cover h1 { font-size: 30px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ================= COVER ================= -->
+  <div class="cover">
+    <div class="brandline">
+      <div class="wordmark">Teal Insights</div>
+      <div class="doc-type">Whitepaper</div>
+    </div>
+    <h1>Proving the Numbers Match</h1>
+    <p class="subtitle">Differential testing as the validation standard for reverse-engineered Excel models</p>
+    <div class="cover-meta">
+      <span><strong>Author</strong>Teal Insights</span>
+      <span><strong>Date</strong>August 24, 2026</span>
+    </div>
+  </div>
+  <div class="draft-banner">Draft for internal review</div>
+
+  <div class="content">
+
+  <!-- ================= EXEC SUMMARY ================= -->
+  <section>
+    <h2>Executive Summary</h2>
+    <div class="exec-box">
+      <p>Many of the world's most consequential macroeconomic models are Excel workbooks. Teal Insights converts these workbooks into modern Python software, increasingly with AI coding agents doing much of the work. That raises the question every stakeholder should ask: how do we know the new software produces the same numbers as the original?</p>
+      <p>Our answer is <strong>differential testing</strong>. We run the same inputs through the original Excel workbook and through the new Python software, then compare every output. The acceptance bar is 100 percent agreement, judged by a strict and fully documented numerical standard. Any single mismatch fails the release.</p>
+      <p>The method has already proven itself in practice. The <strong>LIC DSF Scenario Tool</strong>, built for the Uganda Ministry of Finance around the IMF and World Bank Low-Income Country Debt Sustainability Framework, has banked 47,481 live-Excel comparisons across 132 scenarios and three workbook variants with zero unexplained divergences. On Q-CRAFT, an IMF climate fiscal tool, a single automated run compared 366,588 outputs and caught a release-blocking code generation defect that no human review had noticed.</p>
+      <p>Beyond validation, differential testing gives us something rarer: an objective, repeatable way to evaluate AI-generated code. Every time an AI agent extracts, rewrites, or refactors part of a model, the change must pass the differential test before it is accepted. This makes the test suite a foundation for our broader evaluation practice for AI products.</p>
+    </div>
+
+    <div class="stat-band">
+      <div class="stat">
+        <div class="num">47,481</div>
+        <div class="lbl">Live-Excel comparisons banked on the LIC DSF Scenario Tool, zero unexplained divergences</div>
+      </div>
+      <div class="stat">
+        <div class="num">366,588</div>
+        <div class="lbl">Outputs compared in one automated Q-CRAFT run</div>
+      </div>
+      <div class="stat">
+        <div class="num">100%</div>
+        <div class="lbl">Acceptance bar: any single mismatch fails the release</div>
+      </div>
+    </div>
+    <p style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:12px; color:var(--ink-soft); margin-top:8px;">LIC DSF Scenario Tool parity evidence, banked July 23, 2026: 132 scenarios plus the baseline, run against live Microsoft Excel on three workbook variants (Ghana and two Uganda articles), 119 output probes per run.</p>
+  </section>
+
+  <!-- ================= 1. PROBLEM ================= -->
+  <section>
+    <h2><span class="secnum">1</span> The Problem: Trusted Models in a Fragile Medium</h2>
+    <p>Institutions such as the IMF and the World Bank publish their analytical frameworks as Excel workbooks. These workbooks are authoritative: debt sustainability assessments, climate fiscal risk analyses, and lending decisions rest on their outputs. But Excel is a difficult medium for serious software. Workbooks are hard to version, hard to test, hard to automate, and hard to integrate with modern data infrastructure. A single workbook can contain tens of thousands of interdependent formulas that no one can inspect at once.</p>
+    <p>Reverse-engineering these workbooks into Python libraries solves those problems. The logic becomes readable, testable, automatable, and usable at scale: an analyst can run thousands of scenarios in seconds instead of editing cells by hand.</p>
+    <p>But the rewrite creates a new risk that is worse than the problems it solves. A Python library that <em>almost</em> reproduces the official model is more dangerous than no library at all, because its outputs look authoritative while quietly diverging from the source. Manual spot-checking cannot close this gap. Checking a handful of outputs by hand proves nothing about the thousands of formula pathways that were not checked.</p>
+    <p>The risk is amplified by how the conversion is done. AI coding agents now perform much of the extraction, code generation, and refactoring. This is what makes the work economical at scale, but AI-written code cannot be trusted on inspection alone. We need correctness evidence that is objective, exhaustive, and cheap to regenerate every time the code changes.</p>
+  </section>
+
+  <!-- ================= 2. WHAT IT IS ================= -->
+  <section>
+    <h2><span class="secnum">2</span> What Differential Testing Is</h2>
+    <p>Differential testing is a long-established software validation technique (McKeeman, 1998). The idea is simple: feed <strong>identical inputs</strong> to two independent implementations of the same specification and compare their outputs. If they disagree, one of them has a bug, and the disagreement tells you exactly where to look.</p>
+    <p>In our setting the two implementations are called <strong>oracles</strong>:</p>
+    <ul>
+      <li>The <strong>Golden Master oracle</strong> is the original Excel workbook, the reference implementation. We drive it live through Microsoft Excel itself (via COM automation), so the numbers we compare against are the numbers the institution's own tool produces.</li>
+      <li>The <strong>MVP oracle</strong> (the system under test) is the reverse-engineered Python library, which computes entirely from its own logic and never touches the Excel file at runtime.</li>
+    </ul>
+    <p class="pull">The workbook is its own specification. We do not need to write down what "correct" means for every one of thousands of formulas. We only need to ask the original, and hold the new implementation to its answers.</p>
+
+    <figure>
+      <svg viewBox="0 0 780 440" width="100%" style="max-width:760px; display:block; margin:0 auto;" role="img" aria-label="Differential testing flow: test inputs feed a runner, which sends identical inputs to the Excel golden master oracle and the Python MVP oracle, collects both sets of outputs, and produces a parity report.">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#0e6e6b"/>
+          </marker>
+          <marker id="arrowgrey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#7a8a90"/>
+          </marker>
+        </defs>
+        <style>
+          .box { fill: #ffffff; stroke: #0e6e6b; stroke-width: 1.6; rx: 4; }
+          .boxfill { fill: #eaf4f3; stroke: #0e6e6b; stroke-width: 1.6; }
+          .boxreport { fill: #0a4f4d; stroke: none; }
+          .lbl-main { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 15px; font-weight: 700; fill: #1f2933; }
+          .lbl-sub { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 11.5px; fill: #4a5561; }
+          .lbl-edge { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 11.5px; font-style: italic; fill: #0a4f4d; }
+          .lbl-white { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 15px; font-weight: 700; fill: #ffffff; }
+          .lbl-white-sub { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 11.5px; fill: rgba(255,255,255,0.85); }
+        </style>
+
+        <!-- Test inputs -->
+        <rect class="boxfill" x="20" y="160" width="130" height="64" rx="5"/>
+        <text class="lbl-main" x="85" y="188" text-anchor="middle">Test Inputs</text>
+        <text class="lbl-sub" x="85" y="206" text-anchor="middle">prepared once</text>
+
+        <!-- Runner -->
+        <rect class="box" x="230" y="148" width="180" height="88" rx="5"/>
+        <text class="lbl-main" x="320" y="184" text-anchor="middle">Differential</text>
+        <text class="lbl-main" x="320" y="203" text-anchor="middle">Test Runner</text>
+
+        <!-- Golden master oracle -->
+        <rect class="box" x="500" y="28" width="256" height="96" rx="5"/>
+        <text class="lbl-main" x="628" y="62" text-anchor="middle">Golden Master Oracle</text>
+        <text class="lbl-sub" x="628" y="82" text-anchor="middle">Excel workbook, isolated</text>
+        <text class="lbl-sub" x="628" y="98" text-anchor="middle">Excel process (COM automation)</text>
+
+        <!-- MVP oracle -->
+        <rect class="box" x="500" y="260" width="256" height="96" rx="5"/>
+        <text class="lbl-main" x="628" y="294" text-anchor="middle">MVP Oracle</text>
+        <text class="lbl-sub" x="628" y="314" text-anchor="middle">Python library, isolated process,</text>
+        <text class="lbl-sub" x="628" y="330" text-anchor="middle">no access to the Excel file</text>
+
+        <!-- Parity report -->
+        <rect class="boxreport" x="215" y="330" width="210" height="80" rx="5"/>
+        <text class="lbl-white" x="320" y="362" text-anchor="middle">Parity Report</text>
+        <text class="lbl-white-sub" x="320" y="382" text-anchor="middle">side-by-side outputs, differences,</text>
+        <text class="lbl-white-sub" x="320" y="397" text-anchor="middle">pass/fail per case, aggregates</text>
+
+        <!-- Edges -->
+        <line x1="150" y1="192" x2="222" y2="192" stroke="#0e6e6b" stroke-width="1.8" marker-end="url(#arrow)"/>
+
+        <!-- Runner -> GM (identical inputs): up from the runner's top edge, then right into the oracle -->
+        <path d="M 370 148 V 88 Q 370 80 378 80 H 492" fill="none" stroke="#0e6e6b" stroke-width="1.8" marker-end="url(#arrow)"/>
+        <text class="lbl-edge" x="434" y="70" text-anchor="middle">identical inputs</text>
+
+        <!-- Runner -> MVP (identical inputs): down from the runner's bottom edge, then right into the oracle -->
+        <path d="M 370 236 V 296 Q 370 304 378 304 H 492" fill="none" stroke="#0e6e6b" stroke-width="1.8" marker-end="url(#arrow)"/>
+        <text class="lbl-edge" x="434" y="294" text-anchor="middle">identical inputs</text>
+
+        <!-- GM -> Runner (outputs): down from the oracle's bottom edge, then left into the runner -->
+        <path d="M 560 124 V 168 Q 560 176 552 176 H 418" fill="none" stroke="#7a8a90" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrowgrey)"/>
+        <text class="lbl-edge" x="498" y="166" text-anchor="middle" fill="#4a5561">outputs</text>
+
+        <!-- MVP -> Runner (outputs): up from the oracle's top edge, then left into the runner -->
+        <path d="M 560 260 V 216 Q 560 208 552 208 H 418" fill="none" stroke="#7a8a90" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrowgrey)"/>
+        <text class="lbl-edge" x="498" y="200" text-anchor="middle" fill="#4a5561">outputs</text>
+
+        <!-- Runner -> Report -->
+        <line x1="320" y1="236" x2="320" y2="322" stroke="#0e6e6b" stroke-width="1.8" marker-end="url(#arrow)"/>
+      </svg>
+      <figcaption><strong>Figure 1.</strong> The differential test runner feeds identical inputs to both oracles, collects both sets of outputs, and records every comparison in a parity report.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ================= 3. DESIGN ================= -->
+  <section>
+    <h2><span class="secnum">3</span> How Teal Insights Applies It: The Design</h2>
+    <p>A comparison is only as trustworthy as the rules behind it. Our standard fixes those rules so that every parity result means the same thing across every tool we build. Six rules do the work:</p>
+
+    <div class="design-item">
+      <span class="lead">Identical inputs, enforced.</span>
+      <p>The test runner prepares each input set once and delivers it to both oracles, which run in isolated processes. Before anything is compared, a pre-flight check confirms both sides can actually receive the same inputs; if they cannot, the run stops with a configuration error instead of producing misleading results.</p>
+    </div>
+
+    <div class="design-item">
+      <span class="lead">Two validation layers.</span>
+      <p>The extracted computation graph is tested first (is the extraction faithful?), then the exported library through its public interface only, exactly as a user would call it (is the artifact we ship faithful?). When one layer passes and the other fails, the defect is localized immediately.</p>
+    </div>
+
+    <div class="design-item">
+      <span class="lead">A precise definition of "equal."</span>
+      <p>Excel and Python legitimately differ in the last binary digits of a number, so exact equality is the wrong test. A comparison passes when the absolute difference is at most 10<sup>&#8722;6</sup> or the relative difference is at most 10<sup>&#8722;12</sup> (agreement to 12 significant digits). Both thresholds were calibrated from evidence and are recorded in the standard; in practice, roughly 95 percent of passing comparisons agree bit for bit.</p>
+    </div>
+
+    <div class="design-item">
+      <span class="lead">Every output counts.</span>
+      <p>Error codes must match by class (a <code>#DIV/0!</code> against a <code>#N/A</code> fails), blanks must match blanks, and both sides failing identically is flagged rather than counted as a pass. A crash is recorded as a failure without aborting the rest of the run.</p>
+    </div>
+
+    <div class="design-item">
+      <span class="lead">Coverage is designed, not accidental.</span>
+      <p>Scenarios span the model's headline configurations, single-parameter variations, all combinations of categorical settings, time boundaries, and deliberate error inputs, because divergences cluster at the edges of the input space.</p>
+    </div>
+
+    <div class="design-item">
+      <span class="lead">The result is evidence, not a green light.</span>
+      <p>Every run writes a parity report: one row per comparison, aggregate statistics, the computing environment, a cryptographic hash of the workbook, and, on failure, the exact first diverging cell. The 100 percent bar is enforced by the process exit code, and reports are versioned and refreshed whenever the model or the scenarios change.</p>
+    </div>
+  </section>
+
+  <!-- ================= 4. AI FIT ================= -->
+  <section>
+    <h2><span class="secnum">4</span> Why This Fits AI-Assisted Reverse-Engineering</h2>
+    <p>Differential testing is valuable for any reimplementation. For an AI-driven one, it is close to indispensable, for four reasons.</p>
+
+    <div class="design-item">
+      <span class="lead">It converts trust in the process into proof about the product.</span>
+      <p>With AI agents writing extraction code, generating a public interface, and refactoring internals into readable functions, no human reads every generated line. The differential test does not care who or what wrote the code. It measures the only thing that ultimately matters: does the output match the authoritative source?</p>
+    </div>
+
+    <div class="design-item">
+      <span class="lead">It is a gate inside the AI loop, not just a check at the end.</span>
+      <p>Our pipeline treats AI output as a draft. Each incremental AI rewriting pass is bounded to a small piece of the model and must pass the differential test before it is accepted; a failing pass is retried or rolled back. In the rehearsal project this gate repeatedly caught bad AI refactors of model internals, and diagnosis showed most root causes were in the context we gave the agent, which we then fixed. The gate is what makes aggressive, large-scale AI refactoring safe.</p>
+    </div>
+
+    <div class="design-item">
+      <span class="lead">It scales where human review cannot.</span>
+      <p>The Q-CRAFT run compared 366,588 output values against live Excel, covering every public function of the generated library across 68 scenarios. No review process staffed by humans approaches that coverage, at any budget, let alone on every change.</p>
+    </div>
+
+    <div class="design-item">
+      <span class="lead">It finds what inspection misses, and says where to look.</span>
+      <p>The clearest example comes from Q-CRAFT. The generated code looked plausible and the library ran cleanly, yet duplicate function names had silently cut 32 of 51 output series off from users. The differential run caught it and traced every failure to a named root cause.</p>
+    </div>
+
+    <div class="case-box">
+      <div class="case-title">One Q-CRAFT run, by the numbers</div>
+      <p class="bignums"><strong>366,588</strong> outputs compared &nbsp;&#8594;&nbsp; <strong>186,672</strong> failures &nbsp;&#8594;&nbsp; <strong>2</strong> root causes:</p>
+      <ul>
+        <li><strong>One release-blocking code-generation defect:</strong> 186,456 failures, 99.88 percent of the total.</li>
+        <li><strong>One tolerance gap at extreme magnitudes:</strong> the remaining 216, of which 175 were rounding artifacts and 41 were genuine divergences at a single extreme input.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ================= 5. EVALS ================= -->
+  <section>
+    <h2><span class="secnum">5</span> Differential Testing as Product Evaluation for AI Systems</h2>
+    <p>There is a second way to read everything above. A differential test suite is an <strong>evaluation harness for an AI product</strong>: a fixed task, a defined input distribution, a trusted reference answer, and a single objective metric (the parity pass rate) that is deterministic, reproducible, and immune to grading disputes. In the language of LLM product evaluation, the Excel workbook is a perfect ground-truth labeler for the code our AI pipeline produces, and every pipeline change can be scored against it.</p>
+    <p>This framing also marks the method's boundary honestly. Differential testing evaluates computational fidelity and nothing else. Whether the generated interface is ergonomic for economists, whether the documentation is accurate and helpful, whether the underlying model is economically sound: these require human review and complementary evaluation methods, including LLM-assisted ones. In our evaluation stack, differential testing is the deterministic foundation those other evaluations build on.</p>
+  </section>
+
+  <!-- ================= 6. LIMITS ================= -->
+  <section>
+    <h2><span class="secnum">6</span> What a Passing Result Does and Does Not Prove</h2>
+    <p>We document the limits of a green result as carefully as the result itself, and each known limit has a designed mitigation.</p>
+    <table>
+      <thead>
+        <tr><th style="width:46%">Limit</th><th>Designed mitigation</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Parity holds only over the scenarios tested.</strong> A perfect score on well-behaved inputs proves agreement on well-behaved inputs.</td>
+          <td>The mandatory coverage design of Section 3, including error and boundary scenarios, and stating coverage explicitly rather than implying completeness.</td>
+        </tr>
+        <tr>
+          <td><strong>Matched failures prove nothing.</strong> Two oracles producing the same error exercised no computation.</td>
+          <td>Matched errors fail the run unless a scenario explicitly declares that it tests an error path.</td>
+        </tr>
+        <tr>
+          <td><strong>Evidence can go stale.</strong> A report is only meaningful for the exact workbook and configuration that produced it.</td>
+          <td>Workbook content hashes in the report, hard failure on mismatch, and refreshing committed reports on every relevant change.</td>
+        </tr>
+        <tr>
+          <td><strong>Fidelity is not validity.</strong> Differential testing proves the Python library reproduces the workbook, not that the workbook itself is economically correct.</td>
+          <td>Shared assumptions in test preparation are kept to a minimum; model validity remains the domain of the issuing institution and of expert review.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>We regard this candor as a feature of the method. Knowing precisely what a test proves is what makes the proof usable.</p>
+  </section>
+
+  <!-- ================= 7. TRACK RECORD ================= -->
+  <section>
+    <h2><span class="secnum">7</span> Where It Is Used Today</h2>
+    <p>Differential testing governs all of Teal Insights' Excel reverse-engineering work:</p>
+    <ul>
+      <li><strong>LIC DSF Scenario Tool</strong> (<a href="https://github.com/Teal-Insights/licdsf-scenario-tool">licdsf-scenario-tool</a>): an open-source scenario-analysis tool for the IMF and World Bank Low-Income Country Debt Sustainability Framework, built for the Uganda Ministry of Finance. Every number the tool presents is verified against the official template. The banked evidence covers 132 scenarios plus the baseline across three workbook variants: 47,481 live-Excel comparisons with zero unexplained divergences, restore-path integrity confirmed after every mutation cycle, and a generated parity report that ships with the tool so a skeptic can rerun the evidence.</li>
+      <li><strong>py-lic-dsf</strong> (<a href="https://github.com/Teal-Insights/py-lic-dsf">py-lic-dsf</a>): the standalone Python library track for the LIC DSF itself, reproducing the template's stress-test indicator outputs under the same golden-master validation standard.</li>
+      <li><strong>py-q-craft</strong> (<a href="https://github.com/Teal-Insights/py-q-craft">py-q-craft</a>): the Python library generated from the IMF's Quantitative Climate Risk Assessment Fiscal Tool (Batini et al., 2024), with more than one hundred country datasets. Its full differential run compares 366,588 outputs across every public function of the library, and has already caught and localized release-blocking defects.</li>
+      <li><strong>py-tiny-dsa</strong> (<a href="https://github.com/Teal-Insights/py-tiny-dsa">py-tiny-dsa</a>): the standalone Python library generated from Tiny DSA, a compact debt sustainability model built deliberately to exercise Excel's most hazardous patterns (dynamic references, cross-sheet lookups, time recursion). It passed all 1,770 output comparisons against live Excel, with the underlying arithmetic agreeing bit for bit.</li>
+      <li><strong>Tiny DSA semantic lift</strong> (<a href="https://github.com/Teal-Insights/tiny-dsa-semantic-lift">tiny-dsa-semantic-lift</a>): the methodology rehearsal, lifting Tiny DSA from workbook coordinates into named, modular, economist-readable Python. Every stage was held to the golden-master bar, and the lifted package matched the Excel-validated reference on all 1,290 comparisons.</li>
+    </ul>
+  </section>
+
+  <!-- ================= 8. CONCLUSION ================= -->
+  <section>
+    <h2><span class="secnum">8</span> Conclusion</h2>
+    <p>Reverse-engineering an institutional Excel model is only worth doing if the result can be trusted, and trust must be earned by evidence rather than asserted. Differential testing supplies that evidence: the original workbook serves as its own specification, every output of the new software is held to it under a strict and documented standard, and the whole examination is automated, so it runs on every change rather than once. For AI-assisted engineering the method does double duty, serving both as the release gate that makes large-scale AI code generation safe and as the deterministic core of our evaluation practice. It is how a Python library earns the right to stand in for the official model.</p>
+  </section>
+
+  <!-- ================= REFERENCES ================= -->
+  <section>
+    <h2>References</h2>
+    <ul class="refs">
+      <li>McKeeman, W. M. (1998). "Differential Testing for Software." <em>Digital Technical Journal</em>, 10(1).</li>
+      <li>Batini, N., et al. (2024). Q-CRAFT: Quantitative Climate Risk Assessment Fiscal Tool. International Monetary Fund, Fiscal Affairs Department.</li>
+      <li>Teal Insights. <em>Software Engineering Guidelines for Excel Reverse-Engineering</em> (internal methodology document).</li>
+      <li>Teal Insights. <em>Technical Standard: Golden-Master Validation</em> (internal standard, maintained in each extraction repository).</li>
+    </ul>
+  </section>
+
+  </div><!-- /content -->
+
+  <footer>
+    <span>Teal Insights</span>
+    <span>Draft for internal review · August 2026</span>
+  </footer>
+
+</div>
+</body>
+</html>
