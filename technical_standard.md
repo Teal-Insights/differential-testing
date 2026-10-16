@@ -25,17 +25,17 @@ thousands of formulas, because the new implementation is held to the workbook's 
 | **Golden master** (reference oracle) | The trusted Excel workbook, run live in Microsoft Excel through `xlwings` (COM automation). Source of truth. |
 | **System under test (SUT)** | The generated Python code, tested at one of two layers. The *extracted computation* (the in-memory dependency graph, evaluated directly) answers "is the extraction faithful?". The *shipped package* (the standalone library, called only through its public API) answers "is what users receive faithful?". |
 | **Harness** | The code that writes each scenario to both oracles, reads their outputs, compares them, and writes the report. |
-| **Scenario / test suite** | A scenario is one complete set of input values. The test suite is the set of scenarios a run executes (§5). |
+| **Scenario / test suite** | A scenario is one complete set of input values. The test suite is the set of scenarios a run executes (§6). |
 | **Comparison** | One output cell in one scenario: the *golden value* against the *SUT value*. The unit that §1 judges and §2 records. |
 | **Parity report** | The CSV and TXT record of every comparison (§2). |
 | **Acceptance bar** | 100% of comparisons pass under the precision policy of §1. One mismatch fails the run. |
 
 The sections follow the logic of the test. §1 defines when two values are equal. §2–§3
-define how every comparison is reported. §4 and §9 check that the harness is wired
-correctly, and §5 that the scenarios exercise the model, so that a pass means what it
-says. §6–§7 apply the standard to Q-CRAFT v2 and DDT. §8 lists what a pass still does
-not prove. A conforming validation MUST satisfy §1–§5 and §9; the conformance checklist
-at the end turns them into review items.
+define how every comparison is reported. §4–§5 check that the harness is wired
+correctly, and §6 that the scenarios exercise the model, so that a pass means what it
+says. §7–§8 apply the standard to Q-CRAFT v2 and DDT. §9 lists what a pass still does
+not prove. A conforming validation MUST satisfy §1–§6; the conformance checklist at the
+end turns them into review items.
 
 ---
 
@@ -126,13 +126,13 @@ spreadsheet driver's raw error representation to a typed error value, then compa
 types. Do **not** rely on the driver's error text happening to equal a language-level
 sentinel. That can pass by accident, for example when the sentinel is a string subclass
 whose members spell the Excel errors exactly, and it stays unverified until an error path
-actually runs (§5, §8).
+actually runs (§6, §9).
 
 **Matched errors fail the run unless declared.** A matched error passes its comparison
 but proves nothing: both oracles failed the same way, which is no evidence of
 computational parity. A common cause is a dropdown label mismatch (logical `"High"`
 against workbook `"High "`) that silently produces errors on long-horizon outputs only
-(§9.2). A matched error in a scenario that does not declare `expects_error_values=True`
+(§5.2). A matched error in a scenario that does not declare `expects_error_values=True`
 MUST fail the run (exit code `1`) and be listed in the report. A harness MAY offer an
 override flag (`--allow-matched-errors`) that downgrades these to warnings for triage; it
 MUST NOT be the default, and CI MUST NOT pass it.
@@ -247,119 +247,28 @@ passing run means what it says. All three are required.
 1. **Path and package check.** The workbook and the generated package must exist. If
    either is missing, stop immediately with a hint for regenerating it (exit code `2`,
    §2.3); no scenario runs against missing inputs.
-2. **Staleness check.** If the workbook is newer than the SUT's embedded snapshot of the
-   model's constants, flag it: a later diff may come from the stale snapshot rather than
-   from a code-generation bug. The check SHOULD compare content hashes and **fail hard**
-   on a mismatch, because a warning can be ignored and let real drift through (§8).
+2. **Staleness check.** Compare the workbook with the SUT's embedded snapshot of the
+   model's constants. A stale snapshot makes a later diff look like a code-generation
+   bug. The check MUST compare content hashes and **fail hard** on a mismatch; a
+   warning, such as one based on file timestamps, can be ignored and lets real drift
+   through (§9).
 3. **Binding-cell check.** Before comparing any values, assert that the SUT's input
    setters and output readers target exactly the cell addresses the test suite declares,
-   after address normalization (§9.1). This separates binding correctness from
+   after address normalization (§5.1). This separates binding correctness from
    calculation correctness: without it, a setter bound to the wrong cell can go
    unnoticed whenever that cell's default happens to equal the test value. A conforming
    tool MUST verify its input and output bindings before trusting a passing calculation.
 
 ---
 
-## 5. Coverage design (what the test suite must exercise)
+## 5. Harness boundary rules
 
-The comparison rule (§1) proves parity only on the inputs the test suite actually runs.
-The standard test suite has four scenario groups:
+The pre-flight checks (§4) verify the harness before it runs. These rules govern the
+values it handles while it runs: cell addresses used for lookups, and input values
+written to both oracles. Both must be normalized or resolved the same way for both
+oracles; otherwise the comparison tests the harness, not the model.
 
-- **Canonical scenarios:** the tool's headline configurations (e.g. baseline plus each
-  named shock for each modeled entity). They anchor the test suite to real cases.
-- **Single-axis isolation:** change exactly one parameter from a canonical scenario, so a
-  break shows up cleanly in the per-axis pass-rate table (§2.2).
-- **Full categorical factorial:** every combination of the categorical axes, to catch 2-
-  and 3-way interactions that single-axis scenarios cannot reach.
-- **Boundary coverage:** the first and last periods of any recursion or time dimension,
-  not just interior ones, where off-by-one and boundary bugs live.
-
-**Mandatory: the error and boundary domain.** A test suite of well-formed inputs only is
-the *weakest* differential test: divergences cluster at the edges, and well-formed inputs
-exclude the edges. A conforming test suite MUST include an **error/boundary scenario
-group** that drives every reachable error path and domain edge, for example:
-
-- out-of-range dispatch indices;
-- unknown lookup keys (`#N/A`);
-- inputs that zero a denominator (`#DIV/0!`);
-- triggers that never fire and triggers that always fire;
-- non-integer inputs that hit truncation.
-
-This group is what actually *exercises* error-class equality (§1.3), rather than merely
-defining it.
-
----
-
-## 6. Applying the standard to Q-CRAFT v2
-
-Q-CRAFT (Quantitative Climate Risk Assessment Fiscal Tool; Batini et al., 2024) is an IMF
-Fiscal Affairs Department workbook with 100+ country datasets and rich scenario logic.
-The **contract** of this standard applies unchanged; only the **tool-specific map** is
-new.
-
-**Held constant across tools (do not re-derive):**
-
-- the precision policy of §1, verbatim: the same hybrid gate (`atol = 1e-6`,
-  `rtol = 1e-12`), comparison ladder, and error-class, blank and `NaN` rules. This is
-  what makes a Q-CRAFT parity report comparable to any other;
-- the two-file report (§2), the 100% bar and exit codes (§2.3), the first-divergence
-  block (§3), and the three pre-flight checks (§4).
-
-**Specified per tool:**
-
-- **Binding map:** the named ranges and cells for Q-CRAFT's inputs and outputs, and each
-  input's typed shape. Verify them with the binding-cell check (§4.3) before trusting
-  results.
-- **Scenario axes:** the categorical axes (country, climate-shock type and severity,
-  horizon), the continuous baselines, and the mandatory error/boundary group (§5).
-  Country lookup is central to Q-CRAFT, so that group includes unknown-country `#N/A`
-  scenarios.
-- **Output cell set:** the indicator, threshold and ratio-path cells Q-CRAFT reports.
-
-With 100+ countries, expect a large scenario count. The report format (per-axis tables,
-first divergence, groupable CSV) is built to stay readable at that size and needs no
-structural change.
-
-## 7. Applying the standard to DDT
-
-DDT, the second target tool, uses the same contract and the same split. Hold constant
-the precision policy, report format, acceptance bar, first-divergence rule and pre-flight
-checks. Specify only DDT's binding map, scenario axes (including the error/boundary
-group) and output cell set.
-
-If DDT outputs categorical or classification cells, ladder rule 3 (not numeric-coercible,
-so typed equality) already covers them, and no new comparison rule is needed. DDT's
-scenario design only has to enumerate the valid categorical values.
-
-For both tools, the conformance checklist at the end of this standard is the review.
-
----
-
-## 8. What a green "100% PASS" does NOT prove
-
-A pass proves parity only within the scope of the run. Design against these gaps from
-the start:
-
-- **Untested inputs.** Parity holds only for the scenarios that ran. A 100% pass on
-  well-formed inputs proves "matches Excel on well-formed inputs", not "matches Excel".
-  The mandatory error/boundary group (§5) is the mitigation.
-- **Incidental error equality.** If errors are compared by string identity rather than
-  typed class (§1.3), the comparison is unverified until an error path runs. Make it
-  explicit and exercise it.
-- **Warn-only staleness.** A staleness warning (§4.2) can be ignored, so real
-  workbook/snapshot drift passes silently. Compare content hashes and fail hard.
-- **Environment drift.** Parity can depend on the environment in the last bits. Record
-  the Python and Excel environment of the reference report and, ideally, reproduce it.
-
----
-
-## 9. Harness boundary rules
-
-Values that cross the harness boundary (cell addresses used for lookups, and input values
-written to both oracles) must be normalized or resolved the same way for both oracles.
-Otherwise the comparison tests the harness, not the model.
-
-### 9.1 Address-key normalization
+### 5.1 Address-key normalization
 
 `excel-grapher` stores sheet-qualified addresses in canonical form (e.g.
 `'Discrete Risks'!H2`). Human-authored binding keys and graph `leaf_keys()` may quote
@@ -369,7 +278,7 @@ normalize before comparing configured addresses to graph keys, using `normalize_
 `parse_address` before graph lookups and `xlwings` writes, never a naive
 `split("!", 1)`. See [issue #51](https://github.com/Teal-Insights/extraction-pipeline-template/issues/51).
 
-### 9.2 Workbook-exact label resolution
+### 5.2 Workbook-exact label resolution
 
 Scenario matrices and exported APIs use clean logical values (`"High"`,
 `"Real interest rate"`). Many workbooks branch on **exact string equality** with
@@ -404,6 +313,99 @@ Workbook-neutral procedure:
    the reference labels. Example:
    [`tests/differential/workbook_labels.py`](https://github.com/Teal-Insights/qcraft-extraction-pipeline/blob/main/tests/differential/workbook_labels.py)
    in the Q-CRAFT extraction pipeline.
+
+---
+
+## 6. Coverage design (what the test suite must exercise)
+
+The comparison rule (§1) proves parity only on the inputs the test suite actually runs.
+The standard test suite has four scenario groups:
+
+- **Canonical scenarios:** the tool's headline configurations (e.g. baseline plus each
+  named shock for each modeled entity). They anchor the test suite to real cases.
+- **Single-axis isolation:** change exactly one parameter from a canonical scenario, so a
+  break shows up cleanly in the per-axis pass-rate table (§2.2).
+- **Full categorical factorial:** every combination of the categorical axes, to catch 2-
+  and 3-way interactions that single-axis scenarios cannot reach.
+- **Boundary coverage:** the first and last periods of any recursion or time dimension,
+  not just interior ones, where off-by-one and boundary bugs live.
+
+**Mandatory: the error and boundary domain.** A test suite of well-formed inputs only is
+the *weakest* differential test: divergences cluster at the edges, and well-formed inputs
+exclude the edges. A conforming test suite MUST include an **error/boundary scenario
+group** that drives every reachable error path and domain edge, for example:
+
+- out-of-range dispatch indices;
+- unknown lookup keys (`#N/A`);
+- inputs that zero a denominator (`#DIV/0!`);
+- triggers that never fire and triggers that always fire;
+- non-integer inputs that hit truncation.
+
+This group is what actually *exercises* error-class equality (§1.3), rather than merely
+defining it.
+
+---
+
+## 7. Applying the standard to Q-CRAFT v2
+
+Q-CRAFT (Quantitative Climate Risk Assessment Fiscal Tool; Batini et al., 2024) is an IMF
+Fiscal Affairs Department workbook with 100+ country datasets and rich scenario logic.
+The **contract** of this standard applies unchanged; only the **tool-specific map** is
+new.
+
+**Held constant across tools (do not re-derive):**
+
+- the precision policy of §1, verbatim: the same hybrid gate (`atol = 1e-6`,
+  `rtol = 1e-12`), comparison ladder, and error-class, blank and `NaN` rules. This is
+  what makes a Q-CRAFT parity report comparable to any other;
+- the two-file report (§2), the 100% bar and exit codes (§2.3), the first-divergence
+  block (§3), and the three pre-flight checks (§4).
+
+**Specified per tool:**
+
+- **Binding map:** the named ranges and cells for Q-CRAFT's inputs and outputs, and each
+  input's typed shape. Verify them with the binding-cell check (§4.3) before trusting
+  results.
+- **Scenario axes:** the categorical axes (country, climate-shock type and severity,
+  horizon), the continuous baselines, and the mandatory error/boundary group (§6).
+  Country lookup is central to Q-CRAFT, so that group includes unknown-country `#N/A`
+  scenarios.
+- **Output cell set:** the indicator, threshold and ratio-path cells Q-CRAFT reports.
+
+With 100+ countries, expect a large scenario count. The report format (per-axis tables,
+first divergence, groupable CSV) is built to stay readable at that size and needs no
+structural change.
+
+## 8. Applying the standard to DDT
+
+DDT, the second target tool, uses the same contract and the same split. Hold constant
+the precision policy, report format, acceptance bar, first-divergence rule and pre-flight
+checks. Specify only DDT's binding map, scenario axes (including the error/boundary
+group) and output cell set.
+
+If DDT outputs categorical or classification cells, ladder rule 3 (not numeric-coercible,
+so typed equality) already covers them, and no new comparison rule is needed. DDT's
+scenario design only has to enumerate the valid categorical values.
+
+For both tools, the conformance checklist at the end of this standard is the review.
+
+---
+
+## 9. What a green "100% PASS" does NOT prove
+
+A pass proves parity only within the scope of the run. Design against these gaps from
+the start:
+
+- **Untested inputs.** Parity holds only for the scenarios that ran. A 100% pass on
+  well-formed inputs proves "matches Excel on well-formed inputs", not "matches Excel".
+  The mandatory error/boundary group (§6) is the mitigation.
+- **Incidental error equality.** If errors are compared by string identity rather than
+  typed class (§1.3), the comparison is unverified until an error path runs. Make it
+  explicit and exercise it.
+- **Warn-only staleness.** A staleness warning can be ignored, so real workbook/snapshot
+  drift passes silently. This is why §4.2 requires a content-hash check that fails hard.
+- **Environment drift.** Parity can depend on the environment in the last bits. Record
+  the Python and Excel environment of the reference report and, ideally, reproduce it.
 
 ---
 
@@ -446,27 +448,27 @@ harness does not conform.
 - [ ] The shipped **reference report** matches the current workbook, extraction
   configuration and test suite (§2.4).
 
-### Harness wiring and coverage (§4, §5, §9)
+### Harness wiring and coverage (§4–§6)
 
 - [ ] All **three pre-flight checks** run before any scenario: path and package,
   staleness (content-hash **hard-fail**), and binding cells (§4).
 - [ ] Sheet-qualified addresses are normalized with `normalize_key` / `parse_address`
   before graph lookups and `xlwings` writes, never compared or split with a naive
-  `split("!", 1)` (§9.1).
+  `split("!", 1)` (§5.1).
 - [ ] Enum public input writes use **workbook-exact reference labels**; logical values
-  are resolved at the harness boundary, not trimmed or canonicalized on write (§9.2).
+  are resolved at the harness boundary, not trimmed or canonicalized on write (§5.2).
 - [ ] The test suite includes the canonical, single-axis, full-factorial and boundary
-  groups (§5).
+  groups (§6).
 - [ ] The test suite includes an **error/boundary group** that actually *exercises*
-  error-class equality through reachable error paths and domain edges (§5).
+  error-class equality through reachable error paths and domain edges (§6).
 
-### Per-tool map (§6–§7)
+### Per-tool map (§7–§8)
 
 - [ ] The binding map, scenario axes and output cell set are the **tool's own**; for
   DDT, the valid categorical values are enumerated (ladder rule 3 covers them, so no new
-  comparison rule is needed) (§6–§7).
+  comparison rule is needed) (§7–§8).
 
-### Limitations designed against (§8)
+### Limitations designed against (§9)
 
 - [ ] The Python and Excel **environment is recorded**, so parity is reproducible in the
-  last bits (§8).
+  last bits (§9).
