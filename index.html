@@ -454,16 +454,11 @@
   <!-- ================= 3. DESIGN ================= -->
   <section>
     <h2><span class="secnum">3</span> How Teal Insights Applies It: The Design</h2>
-    <p>A comparison is only as trustworthy as the rules behind it. Our standard fixes those rules so that every parity result means the same thing across every tool we build. Six rules do the work:</p>
+    <p>A comparison is only as trustworthy as the rules behind it. Our standard fixes those rules so that every parity result means the same thing across every tool we build. Four rules do the work:</p>
 
     <div class="design-item">
       <span class="lead">Identical inputs, enforced.</span>
       <p>The test runner prepares each input set once and delivers it to both oracles, which run in isolated processes. Before anything is compared, a pre-flight check confirms both sides can actually receive the same inputs; if they cannot, the run stops with a configuration error instead of producing misleading results.</p>
-    </div>
-
-    <div class="design-item">
-      <span class="lead">Two validation layers.</span>
-      <p>The extracted computation graph is tested first (is the extraction faithful?), then the exported library through its public interface only, exactly as a user would call it (is the artifact we ship faithful?). When one layer passes and the other fails, the defect is localized immediately.</p>
     </div>
 
     <div class="design-item">
@@ -474,11 +469,6 @@
     <div class="design-item">
       <span class="lead">Every output counts.</span>
       <p>Error codes must match by class (a <code>#DIV/0!</code> against a <code>#N/A</code> fails), blanks must match blanks, and both sides failing identically is flagged rather than counted as a pass. A crash is recorded as a failure without aborting the rest of the run.</p>
-    </div>
-
-    <div class="design-item">
-      <span class="lead">Coverage is designed, not accidental.</span>
-      <p>Scenarios span the model's headline configurations, single-parameter variations, all combinations of categorical settings, time boundaries, and deliberate error inputs, because divergences cluster at the edges of the input space.</p>
     </div>
 
     <div class="design-item">
