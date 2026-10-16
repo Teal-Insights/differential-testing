@@ -8,10 +8,17 @@ acceptance bar, and the coverage a conforming harness must exercise.
 
 ## 0. What this standard governs
 
-Golden-master (a.k.a. differential) validation feeds **identical inputs** to two
-oracles and asserts they produce the **same outputs**. When they disagree, the trusted
-oracle wins and the disagreement localizes a bug in the system under test. (McKeeman,
-*Differential Testing for Software*, 1998.)
+**Differential testing** is a long-established software validation technique (McKeeman,
+*Differential Testing for Software*, 1998). The idea is simple: feed **identical inputs**
+to two independent implementations of the same specification and compare their outputs.
+If they disagree, one of them has a bug, and the disagreement shows exactly where to look.
+
+In this standard the two implementations are called **oracles**. The original Excel
+workbook is the trusted reference (the golden master), so golden-master validation and
+differential testing mean the same thing here. When the oracles disagree, the golden
+master wins and the disagreement localizes a bug in the system under test. The workbook
+is its own specification: correctness does not have to be written down for each of
+thousands of formulas, because the new implementation is held to the workbook's answers.
 
 | Role | Definition for this standard |
 |---|---|
@@ -20,7 +27,7 @@ oracle wins and the disagreement localizes a bug in the system under test. (McKe
 | **Parity report** | The two-file (CSV + TXT) record of every cell comparison, defined in §2. |
 | **Acceptance bar** | 100% of comparisons pass, at the precision policy of §1. Any single mismatch = FAIL. |
 
-A conforming validation for a new tool MUST satisfy all of §1–§5 and §9. §6–§7 are the
+A conforming validation MUST satisfy all of §1–§5 and §9. §6–§7 are the
 per-tool application notes for Q-CRAFT v2 and DDT. §8 records the failure modes a green
 checkmark does **not** cover, so they are designed in from the start rather than
 discovered later. §9 sets the rules for addresses and input values that cross the
@@ -58,7 +65,7 @@ rounding, not from a real defect. `1e-6` absorbs that rounding without masking a
 divergence. In practice, on a faithful extraction, comparisons decided by the absolute
 branch are observed to be overwhelmingly `0.0` (bit-exact); the tolerance is headroom,
 not a crutch. (Comparisons decided by the relative branch carry a nonzero absolute
-difference by construction; see the amendment record below.)
+difference by construction; see *Why both branches* below.)
 
 **Rationale: relative branch.** An absolute bound stops measuring parity once values
 grow large: at magnitude `1e16` one unit in the last place (ULP) of an IEEE 754 double
@@ -69,17 +76,13 @@ carry ≈ 15.95), tolerating ~4 digits of accumulated rounding across deep recur
 while remaining orders of magnitude stricter than any genuine modeling divergence. As
 with the absolute branch, the tolerance is headroom, not a crutch.
 
-**Amendment record (2026-07-26): gate widened from absolute-only to hybrid.** The gate
-was originally absolute-only, with `rel_diff` recorded for triage but never deciding.
-An absolute bound is structurally unsatisfiable once `|golden|` exceeds ≈ `8.6e9`, where
-one ULP of an IEEE 754 double already exceeds `atol = 1e-6`; at still-large magnitudes
-a few ULPs of accumulated rounding likewise exceed the absolute gate while remaining near
-machine epsilon in relative terms. `rtol = 1e-12` absorbs that format-limited rounding
-(agreement to ≥ 12 significant digits) without masking genuine modeling divergences,
-which are typically orders of magnitude larger. The hybrid gate is **strictly more
-permissive** than the absolute gate it replaces, so every comparison that passed under
-the prior policy still passes and historical reports remain comparable; the amendment
-changes only which *failures* are recognized as rounding noise. (For calibration:
+**Why both branches.** Neither bound is sufficient alone. An absolute bound is
+structurally unsatisfiable once `|golden|` exceeds ≈ `8.6e9`, where one ULP of an IEEE
+754 double already exceeds `atol = 1e-6`; at still-large magnitudes a few ULPs of
+accumulated rounding likewise exceed the absolute bound while remaining near machine
+epsilon in relative terms. A relative bound cannot judge a zero golden value and becomes
+arbitrarily strict as values approach zero. The hybrid gate therefore applies whichever
+bound is meaningful at the magnitude of the value being compared. (For calibration:
 `math.isclose`'s conventional `rel_tol = 1e-9` is too loose for this contract and MUST
 NOT be substituted.)
 
@@ -90,9 +93,8 @@ license for loose parity. A divergence such as golden `51.14` vs SUT `1075.14`
 catastrophic cancellation at degenerate inputs) still fails under the hybrid gate, and
 MUST: ill-conditioned outputs at degenerate inputs are a scenario-design and
 model-validity question, not a tolerance question. Widening either constant (or
-changing the `rel_diff` denominator) to absorb such rows is prohibited without a
-further amendment to this section, because doing so changes what "parity" means and
-breaks comparability of reports across tools.
+changing the `rel_diff` denominator) to absorb such rows is prohibited, because doing so
+changes what "parity" means and breaks comparability of reports across tools.
 
 ### 1.2 The ordered comparison ladder
 
@@ -121,10 +123,10 @@ class**; a `#DIV/0!` on one side and a `#N/A` on the other is a **failure**, not
 equality: the two sides agree on *which* error and are both recognized as errors. Do
 **not** rely on incidental string equality between the spreadsheet driver's error text
 and a language-level sentinel. Normalize the driver's raw error representation to a typed
-error value first, then compare types. (A prior review found this working only by
-accident on the pilot tool, where the error sentinel happened to be a string subclass
-whose members spelled the Excel errors exactly. A new tool should make the error
-comparison explicit from day one and, per §5, actually exercise it.)
+error value first, then compare types. (String equality can appear to work by accident,
+for example when the error sentinel is a string subclass whose members spell the Excel
+errors exactly. Make the error comparison explicit from the start and, per §5, actually
+exercise it.)
 
 **Matched errors fail the run unless declared.** Two cells that agree on the same error
 class pass the *comparison*, but that comparison exercised nothing: both oracles
@@ -276,10 +278,9 @@ standard test suite is built from four scenario groups:
 - **Boundary coverage**: the endpoints of any recursion/time dimension (the first and
   last periods, not just an interior one), where off-by-one and boundary bugs live.
 
-**Mandatory addition for new tools: the error and boundary domain.** The single most
-important lesson carried forward is that a happy-path-only numeric test suite is the *weakest*
-differential test: divergences cluster at the edges, and the edges are exactly what a
-well-formed-inputs test suite excludes. A conforming test suite for Q-CRAFT v2 / DDT MUST include an
+**Mandatory: the error and boundary domain.** A happy-path-only numeric test suite is
+the *weakest* differential test: divergences cluster at the edges, and the edges are
+exactly what a well-formed-inputs test suite excludes. A conforming test suite MUST include an
 **error/boundary scenario group** that drives every reachable error-return path and domain
 edge, e.g. out-of-range dispatch indices, unknown lookup keys (`#N/A`),
 denominator-zeroing inputs (`#DIV/0!`), never-firing / always-firing triggers, and
@@ -290,10 +291,9 @@ actually *exercised* rather than merely defined.
 
 ## 6. Applying the standard to Q-CRAFT v2
 
-Q-CRAFT (Quantitative Climate Risk Assessment Fiscal Tool; Batini et al., 2024) is a
-larger IMF FAD workbook with 100+ country datasets and richer scenario logic than the
-pilot. The standard scales without change to its **contract**; only the **tool-specific
-map** changes.
+Q-CRAFT (Quantitative Climate Risk Assessment Fiscal Tool; Batini et al., 2024) is an
+IMF FAD workbook with 100+ country datasets and rich scenario logic. The standard
+applies without change to its **contract**; only the **tool-specific map** changes.
 
 **Held constant (do not re-derive per tool):**
 
@@ -303,19 +303,19 @@ map** changes.
 - The two-file parity-report convention (§2), the 100% bar and exit codes (§2.3), the
   first-divergence block (§3), and the three pre-flight checks (§4).
 
-**Re-specified per tool (the porting work):**
+**Re-specified per tool (the tool-specific work):**
 
 - **Named-range / binding map**: Q-CRAFT's input and output cells and their typed input
   shape. Verify them via the binding-cell check (§4.3) before trusting results.
 - **Scenario axes**: Q-CRAFT's categorical axes (country, climate-shock type/severity,
-  horizon) and continuous baselines, plus the mandatory error/boundary group (§5). The
-  country-lookup pattern the pilot rehearses is the same mechanism Q-CRAFT uses at scale,
-  so unknown-country `#N/A` coverage ports directly.
+  horizon) and continuous baselines, plus the mandatory error/boundary group (§5). Country
+  lookup is a core Q-CRAFT mechanism, so that group includes unknown-country `#N/A`
+  scenarios.
 - **Output cell set**: the indicator/threshold and ratio-path cells Q-CRAFT reports.
 
-Because Q-CRAFT loads 100+ country datasets, expect the test suite's scenario count to grow by
-an order of magnitude; the report convention (per-axis tables, first-divergence, CSV
-grouping) is designed to stay readable at that size and needs no structural change.
+Because Q-CRAFT loads 100+ country datasets, expect a large scenario count; the report
+convention (per-axis tables, first-divergence, CSV grouping) is designed to stay readable
+at that size and needs no structural change.
 
 ## 7. Applying the standard to DDT
 
@@ -340,11 +340,11 @@ produces a well-formed first-divergence block, (f) all three pre-flight checks r
 
 ## 8. What a green "100% PASS" does NOT prove
 
-Documented so the next tool designs these in rather than discovering them later:
+Documented so that each tool designs these in rather than discovering them later:
 
 - **Untested input domain.** Parity is only quantified over the scenarios in the test suite. A
   100% bar on happy-path inputs proves "matches Excel on nice inputs," not "matches Excel."
-  §5's error/boundary group is the mitigation and is mandatory for new tools.
+  §5's error/boundary group is the mitigation and is mandatory.
 - **Incidental error equality.** If error comparison rides on string identity rather than
   typed equality (§1.3), it is unverified until an error path actually runs. Make it
   explicit and exercise it.
