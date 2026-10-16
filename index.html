@@ -502,14 +502,6 @@
       <p>The clearest example comes from Q-CRAFT. The generated code looked plausible and the library ran cleanly, yet duplicate function names had silently cut 32 of 51 output series off from users. The differential run caught it and traced every failure to a named root cause.</p>
     </div>
 
-    <div class="case-box">
-      <div class="case-title">One Q-CRAFT run, by the numbers</div>
-      <p class="bignums"><strong>366,588</strong> outputs compared &nbsp;&#8594;&nbsp; <strong>186,672</strong> failures &nbsp;&#8594;&nbsp; <strong>2</strong> root causes:</p>
-      <ul>
-        <li><strong>One release-blocking code-generation defect:</strong> 186,456 failures, 99.88 percent of the total.</li>
-        <li><strong>One tolerance gap at extreme magnitudes:</strong> the remaining 216, of which 175 were rounding artifacts and 41 were genuine divergences at a single extreme input.</li>
-      </ul>
-    </div>
   </section>
 
   <!-- ================= 5. EVALS ================= -->
