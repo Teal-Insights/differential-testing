@@ -1,169 +1,167 @@
 # Technical Standard: Differential Testing
 
 This standard defines how an Excel-to-Python extraction is validated by differential
-(golden-master) testing: the comparison contract, the parity-report format, the
-acceptance bar, and the coverage a conforming harness must exercise.
+testing: the rule for comparing values, the report format, the acceptance bar, and the
+coverage a conforming harness must exercise.
 
 ---
 
 ## 0. What this standard governs
 
 **Differential testing** is a long-established software validation technique (McKeeman,
-*Differential Testing for Software*, 1998). The idea is simple: feed **identical inputs**
-to two independent implementations of the same specification and compare their outputs.
-If they disagree, one of them has a bug, and the disagreement shows exactly where to look.
+*Differential Testing for Software*, 1998). Feed **identical inputs** to two independent
+implementations of the same specification and compare their outputs. If they disagree,
+one of them has a bug, and the disagreement shows exactly where to look.
 
-In this standard the two implementations are called **oracles**. The original Excel
-workbook is the trusted reference (the golden master), so golden-master validation and
-differential testing mean the same thing here. When the oracles disagree, the golden
+Here the two implementations are called **oracles**. The original Excel workbook is the
+trusted reference, the **golden master**, so golden-master validation and differential
+testing mean the same thing in this standard. When the oracles disagree, the golden
 master wins and the disagreement localizes a bug in the system under test. The workbook
-is its own specification: correctness does not have to be written down for each of
+is its own specification: no one has to write down what "correct" means for each of
 thousands of formulas, because the new implementation is held to the workbook's answers.
 
-| Role | Definition for this standard |
+| Term | Definition in this standard |
 |---|---|
-| **Golden Master** (reference oracle) | The trusted Excel workbook, driven live through Microsoft Excel via `xlwings` (COM automation). Source of truth. |
-| **System Under Test (SUT)** | The generated Python artifact. Two layers may be validated: the *extracted computation* (the in-memory dependency graph, evaluated directly) and the *shipped package* (the standalone library exercised only through its public API). Each answers a different question: "is the extraction faithful?" vs. "is the artifact we hand users faithful?" |
-| **Parity report** | The two-file (CSV + TXT) record of every cell comparison, defined in §2. |
-| **Acceptance bar** | 100% of comparisons pass, at the precision policy of §1. Any single mismatch = FAIL. |
+| **Golden master** (reference oracle) | The trusted Excel workbook, run live in Microsoft Excel through `xlwings` (COM automation). Source of truth. |
+| **System under test (SUT)** | The generated Python code, tested at one of two layers. The *extracted computation* (the in-memory dependency graph, evaluated directly) answers "is the extraction faithful?". The *shipped package* (the standalone library, called only through its public API) answers "is what users receive faithful?". |
+| **Harness** | The code that writes each scenario to both oracles, reads their outputs, compares them, and writes the report. |
+| **Scenario / test suite** | A scenario is one complete set of input values. The test suite is the set of scenarios a run executes (§5). |
+| **Comparison** | One output cell in one scenario: the *golden value* against the *SUT value*. The unit that §1 judges and §2 records. |
+| **Parity report** | The CSV and TXT record of every comparison (§2). |
+| **Acceptance bar** | 100% of comparisons pass under the precision policy of §1. One mismatch fails the run. |
 
-A conforming validation MUST satisfy all of §1–§5 and §9. §6–§7 are the
-per-tool application notes for Q-CRAFT v2 and DDT. §8 records the failure modes a green
-checkmark does **not** cover, so they are designed in from the start rather than
-discovered later. §9 sets the rules for addresses and input values that cross the
-harness boundary.
+The sections follow the logic of the test. §1 defines when two values are equal. §2–§3
+define how every comparison is reported. §4 and §9 check that the harness is wired
+correctly, and §5 that the scenarios exercise the model, so that a pass means what it
+says. §6–§7 apply the standard to Q-CRAFT v2 and DDT. §8 lists what a pass still does
+not prove. A conforming validation MUST satisfy §1–§5 and §9; the conformance checklist
+at the end turns them into review items.
 
 ---
 
 ## 1. Precision policy (the comparison contract)
 
-This is the heart of the standard: the exact, ordered rule by which one output cell's
-golden value and SUT value are judged equal.
+This section is the core of the standard: the exact, ordered rule that decides whether a
+golden value and a SUT value are equal. Every tool uses the same rule, so parity reports
+are comparable across tools.
 
 ### 1.1 Hybrid numeric tolerance: `atol = 1e-6`, `rtol = 1e-12`
 
-The numeric acceptance criterion is a **hybrid** of absolute and relative difference:
-a comparison passes when **either** bound holds:
+A numeric comparison passes when **either** the absolute or the relative difference is
+within tolerance:
 
 ```
-rel_diff = abs(golden - sut) / abs(golden)        (infinite when golden == 0)
+abs_diff = abs(golden - sut)
+rel_diff = abs_diff / abs(golden)        (infinite when golden == 0)
 
-passed   ⇔  abs(golden - sut) <= 1e-6   or   rel_diff <= 1e-12
+passed   ⇔  abs_diff <= 1e-6   or   rel_diff <= 1e-12
 ```
 
-The relative branch is measured against the golden value alone. When the golden value
-is `0`, `rel_diff` is infinite, so only the absolute branch can pass a zero-golden
-comparison. Both constants MUST be defined once as named constants and threaded through
-the run as configuration, never inlined at a comparison site, so a tool's tolerances
-are auditable in one place. The gate MUST be evaluated on the same `rel_diff` value that
-is written to the report, so a report reader can reproduce every verdict from the
-`abs_diff` and `rel_diff` columns alone.
+- `rel_diff` is measured against the golden value only. When the golden value is `0`,
+  `rel_diff` is infinite, so only the absolute bound can pass the comparison.
+- `atol` and `rtol` MUST each be defined once, as named constants passed through the run
+  as configuration, and never inlined at a comparison site. A tool's tolerances are then
+  auditable in one place.
+- The verdict MUST be computed from the same `rel_diff` value written to the report, so a
+  reader can reproduce every verdict from the `abs_diff` and `rel_diff` columns alone.
 
-**Rationale: absolute branch.** Spreadsheets typically report values to ~6 decimals,
-and Excel and Python legitimately differ in the last few bits from floating-point
-rounding, not from a real defect. `1e-6` absorbs that rounding without masking a genuine
-divergence. In practice, on a faithful extraction, comparisons decided by the absolute
-branch are observed to be overwhelmingly `0.0` (bit-exact); the tolerance is headroom,
-not a crutch. (Comparisons decided by the relative branch carry a nonzero absolute
-difference by construction; see *Why both branches* below.)
+**Why `atol = 1e-6`.** Spreadsheets typically show values to about 6 decimals, and Excel
+and Python can differ in the last few bits from floating-point rounding without any real
+defect. `1e-6` absorbs that rounding without hiding a genuine divergence. On faithful
+extractions, comparisons decided by the absolute bound are observed to be overwhelmingly
+`0.0` (bit-exact): the tolerance is a margin, not a substitute for agreement. Passes
+decided by the relative bound have `abs_diff > atol` by definition.
 
-**Rationale: relative branch.** An absolute bound stops measuring parity once values
-grow large: at magnitude `1e16` one unit in the last place (ULP) of an IEEE 754 double
-is ≈ 2, so `atol = 1e-6` is finer than the resolution of the number format itself and
-an absolute-only gate demands bit-identical operation ordering rather than computational
-agreement. `rtol = 1e-12` requires agreement to at least 12 significant digits (doubles
-carry ≈ 15.95), tolerating ~4 digits of accumulated rounding across deep recursions
-while remaining orders of magnitude stricter than any genuine modeling divergence. As
-with the absolute branch, the tolerance is headroom, not a crutch.
+**Why `rtol = 1e-12`.** An absolute bound stops measuring parity once values grow large.
+At magnitude `1e16`, one unit in the last place (ULP) of an IEEE 754 double is about 2,
+so `atol = 1e-6` is finer than the number format can resolve; an absolute-only gate would
+demand identical operation order rather than computational agreement. `rtol = 1e-12`
+requires agreement to at least 12 significant digits. Doubles carry about 15.95, so this
+allows about 4 digits of rounding accumulated through deep recursions while staying
+orders of magnitude stricter than any genuine modeling divergence.
 
-**Why both branches.** Neither bound is sufficient alone. An absolute bound is
-structurally unsatisfiable once `|golden|` exceeds ≈ `8.6e9`, where one ULP of an IEEE
-754 double already exceeds `atol = 1e-6`; at still-large magnitudes a few ULPs of
-accumulated rounding likewise exceed the absolute bound while remaining near machine
-epsilon in relative terms. A relative bound cannot judge a zero golden value and becomes
-arbitrarily strict as values approach zero. The hybrid gate therefore applies whichever
-bound is meaningful at the magnitude of the value being compared. (For calibration:
-`math.isclose`'s conventional `rel_tol = 1e-9` is too loose for this contract and MUST
-NOT be substituted.)
+**Why both bounds.** Neither bound works alone. The absolute bound cannot be met once
+`|golden|` exceeds about `8.6e9`, where one ULP already exceeds `1e-6`; somewhat below
+that, a few ULPs of accumulated rounding exceed it while staying near machine epsilon in
+relative terms. The relative bound cannot judge a zero golden value and becomes
+arbitrarily strict as values approach zero. The hybrid rule applies whichever bound is
+meaningful at the magnitude of the value being compared. The conventional
+`rel_tol = 1e-9` of `math.isclose` is too loose for this contract and MUST NOT be
+substituted.
 
-**What the relative branch does NOT excuse.** The hybrid gate exists to stop the
-comparison ladder from failing agreement the number format cannot express; it is not a
-license for loose parity. A divergence such as golden `51.14` vs SUT `1075.14`
-(typical of ULP-level differences in astronomically large intermediates surviving
-catastrophic cancellation at degenerate inputs) still fails under the hybrid gate, and
-MUST: ill-conditioned outputs at degenerate inputs are a scenario-design and
-model-validity question, not a tolerance question. Widening either constant (or
-changing the `rel_diff` denominator) to absorb such rows is prohibited, because doing so
+**What the relative bound does not excuse.** The hybrid rule stops the comparison from
+failing agreement that the number format cannot express. It is not a license for loose
+parity. A divergence such as golden `51.14` against SUT `1075.14` (typical of ULP-level
+differences in very large intermediates surviving catastrophic cancellation at degenerate
+inputs) still fails, and MUST fail. Ill-conditioned outputs at degenerate inputs are a
+question of scenario design and model validity, not of tolerance. Widening either
+constant, or changing the `rel_diff` denominator, to absorb such rows is prohibited: it
 changes what "parity" means and breaks comparability of reports across tools.
 
 ### 1.2 The ordered comparison ladder
 
-Comparison is a **decision ladder**, evaluated top to bottom; the first matching rule
-decides. Order matters: the `None` and non-finite checks must precede the numeric
-tolerance check so a blank, an error, or a `NaN` never reaches the arithmetic.
+Each comparison runs down a fixed list of rules, and the first rule that matches decides.
+Order matters: blanks, errors and non-finite values are settled before the tolerance
+rule, so they never reach the arithmetic.
 
-| # | Condition | Verdict | Diffs recorded |
+| # | Condition | Verdict | `abs_diff` / `rel_diff` |
 |---|---|---|---|
 | 1 | both blank (`None`) | **pass** | `0.0` / `0.0` |
 | 2 | exactly one side blank | **fail** | none |
-| 3 | value not numeric-coercible (e.g. a spreadsheet error) | pass **iff** the two sides are equal by typed identity | none |
+| 3 | value not numeric-coercible (e.g. a spreadsheet error) | pass **iff** both sides are equal by typed identity | none |
 | 4 | numeric but non-finite (`NaN`, `±inf`) | pass **iff** exactly equal, **or** both `NaN` | none |
-| 5 | finite numbers | pass **iff** `abs(golden - sut) <= atol` **or** `rel_diff <= rtol` | computed |
+| 5 | finite numbers | pass **iff** `abs_diff <= atol` **or** `rel_diff <= rtol` | computed |
 
-Rules 1–2 are the **blank rules** (§1.4). Rule 3 is **error-class equality** (§1.3).
-Rule 4 is the **`NaN` rule** (§1.4). Rule 5 is the **tolerance rule** (§1.1).
+Rules 1–2 are the blank rules and rule 4 is the `NaN` rule (§1.4). Rule 3 is error-class
+equality (§1.3). Rule 5 is the tolerance rule (§1.1).
 
 ### 1.3 Error-class equality
 
-Spreadsheet error cells (`#DIV/0!`, `#VALUE!`, `#N/A`, …) are **first-class comparison
-values**, not noise. Two cells that are both errors match **iff they are the same error
-class**; a `#DIV/0!` on one side and a `#N/A` on the other is a **failure**, not a pass.
+Spreadsheet errors (`#DIV/0!`, `#VALUE!`, `#N/A`, …) are comparison values, not noise.
+Two errors match **iff they are the same error class**: `#DIV/0!` against `#N/A` fails.
 
-**Standard requirement.** The equality used for errors MUST be a *typed, class-level*
-equality: the two sides agree on *which* error and are both recognized as errors. Do
-**not** rely on incidental string equality between the spreadsheet driver's error text
-and a language-level sentinel. Normalize the driver's raw error representation to a typed
-error value first, then compare types. (String equality can appear to work by accident,
-for example when the error sentinel is a string subclass whose members spell the Excel
-errors exactly. Make the error comparison explicit from the start and, per §5, actually
-exercise it.)
+**Compare typed errors, not strings.** The equality MUST be a typed, class-level
+equality: both sides are recognized as errors and agree on *which* error. Normalize the
+spreadsheet driver's raw error representation to a typed error value, then compare the
+types. Do **not** rely on the driver's error text happening to equal a language-level
+sentinel. That can pass by accident, for example when the sentinel is a string subclass
+whose members spell the Excel errors exactly, and it stays unverified until an error path
+actually runs (§5, §8).
 
-**Matched errors fail the run unless declared.** Two cells that agree on the same error
-class pass the *comparison*, but that comparison exercised nothing: both oracles
-errored identically, so it contributes no evidence of computational parity. (Dropdown
-label mismatches, e.g. logical `"High"` vs workbook `"High "`, are a common cause of
-silent matched errors on long-horizon outputs only.) A matched error on a scenario that
-does not declare `expects_error_values=True` MUST fail the *run* (exit code `1`) and be
-listed in the report. Harnesses MAY offer a triage escape hatch
-(`--allow-matched-errors`) that downgrades these to warnings; it MUST NOT be the
-default, and CI MUST NOT pass it.
+**Matched errors fail the run unless declared.** A matched error passes its comparison
+but proves nothing: both oracles failed the same way, which is no evidence of
+computational parity. A common cause is a dropdown label mismatch (logical `"High"`
+against workbook `"High "`) that silently produces errors on long-horizon outputs only
+(§9.2). A matched error in a scenario that does not declare `expects_error_values=True`
+MUST fail the run (exit code `1`) and be listed in the report. A harness MAY offer an
+override flag (`--allow-matched-errors`) that downgrades these to warnings for triage; it
+MUST NOT be the default, and CI MUST NOT pass it.
 
 ### 1.4 Blank and `NaN` rules
 
-- **Blank (`None`) rules:** both blank → pass; one blank against a value → fail. A
-  blank-vs-number mismatch is a real divergence (a cell the SUT failed to populate, or
-  populated when the golden master left it empty) and MUST fail, never be silently
-  tolerated.
-- **`NaN` / non-finite rules:** `NaN` compares false against everything, so it cannot be
-  judged by tolerance and MUST be handled before the arithmetic. Two `NaN`s are treated as
-  **equal**; `±inf` matches only its exact counterpart.
+- **Blanks (`None`):** both blank passes; one blank against a value fails. A blank
+  against a number is a real divergence (the SUT left a cell empty that the golden master
+  filled, or the reverse) and MUST fail, never be silently tolerated.
+- **`NaN` and infinities:** `NaN` compares false against everything, so tolerance cannot
+  judge it, and it MUST be handled before the arithmetic. Two `NaN`s are equal; `±inf`
+  matches only the same infinity.
 
 ### 1.5 Crash containment
 
-A per-scenario exception MUST NOT abort the test run. It is recorded as one **failing**
-comparison per output cell, with both oracle values replaced by the exception's
-class + message and the diff fields empty. The report thus captures a crash as a
-first-class failure rather than losing the whole run.
+An exception in one scenario MUST NOT abort the test run. It is recorded as one
+**failing** comparison per output cell, with both oracle values replaced by the
+exception's class and message and the diff fields left empty. The crash then appears in
+the report as a failure instead of losing the whole run.
 
 ---
 
 ## 2. Parity-report convention
 
-Every conforming run writes **two files** to a report directory: a machine-readable CSV
-(one row per cell comparison) and a human-readable TXT summary. Both are required; they
-serve different readers (diffing/pivoting vs. eyeballing).
+Every conforming run writes **two files** to a report directory. Both are required,
+because they serve different readers: a CSV with one row per comparison, for diffing and
+pivoting, and a TXT summary, for a human to read first.
 
-### 2.1 CSV: one row per (scenario, cell)
+### 2.1 CSV: one row per comparison
 
 Recommended schema:
 
@@ -171,58 +169,56 @@ Recommended schema:
 scenario_id, cell_address, cell_label, golden_value, sut_value, abs_diff, rel_diff, passed
 ```
 
-**Standard requirements for the CSV:** exactly one row per cell comparison; a stable
-scenario/point identifier; the cell address **and** a human-readable label; both oracle
-values; `abs_diff` and `rel_diff`; and a boolean pass column. Single-axis scenario
-identifiers MUST be constructed so a per-axis pass-rate is recoverable by grouping the CSV
-(e.g. name them `single_axis:<axis>=<value>`).
+The CSV MUST contain exactly one row per comparison, with a stable scenario identifier,
+the cell address **and** a human-readable label, both oracle values, `abs_diff` and
+`rel_diff`, and a boolean pass column. Single-axis scenario identifiers MUST let a reader
+recover per-axis pass rates by grouping the CSV (e.g. `single_axis:<axis>=<value>`).
 
 ### 2.2 TXT: the summary a human reads first
 
 Required content, in order:
 
-1. **Header:** title, generation timestamp (UTC, ISO-8601, seconds precision), workbook
+1. **Header:** title, generation timestamp (UTC, ISO 8601, to the second), workbook
    identity, SUT identity, and both tolerances (`atol = 1e-06`, `rtol = 1e-12`).
-2. **Aggregate counts:** total comparisons, passed, failed, pass rate `%`.
+2. **Counts:** total comparisons, passed, failed, and pass rate (%).
 3. **The acceptance bar, printed literally:** `Acceptance bar: 100.00%`.
 4. **Result:** `PASS` or `FAIL`.
-5. **First divergence** (§3), when any failure exists.
-6. **The full list of failing comparisons.**
+5. **First divergence** (§3), when any comparison failed.
+6. **Every failing comparison.**
 
-The TXT SHOULD also carry **per-axis** and **per-point** pass-rate tables so "which axis
-broke" is readable at a glance, and, where the SUT is the extracted graph, an
-**absent-inputs** section listing any input cell the test suite tried to set but the SUT does
-not expose (itself a differential signal about the extraction).
+The TXT SHOULD also include per-axis and per-point pass-rate tables, so the axis that
+broke is visible at a glance. When the SUT is the extracted graph, it SHOULD also list
+**absent inputs**: input cells the test suite tried to set that the SUT does not expose.
+An absent input is itself a differential signal about the extraction.
 
 ### 2.3 The 100% pass-rate acceptance bar
 
-The bar is **100%**: any single mismatch fails the run. This MUST be asserted in three
+The bar is **100%**: one mismatch fails the run. The bar MUST be asserted in three
 places, and all three MUST agree:
 
-- printed in the TXT (`Acceptance bar: 100.00%`);
-- the process **exit code**: `0` iff every comparison passes and no undeclared matched
-  errors remain (§1.3), `1` if any fail, `2` if a prerequisite is missing (no workbook,
-  no Excel, package not generated);
-- CI (the pull-request test workflow) and reviewers treat any non-`PASS` report as a blocking failure.
+- the TXT prints `Acceptance bar: 100.00%`;
+- the process **exit code** is `0` iff every comparison passes and no undeclared matched
+  errors remain (§1.3), `1` if any comparison fails, and `2` if a prerequisite is
+  missing (no workbook, no Excel, package not generated);
+- CI (the pull-request test workflow) and reviewers treat any non-`PASS` report as a
+  blocking failure.
 
 ### 2.4 Reports are versioned artifacts, not scratch output
 
-A parity report is only meaningful for the exact workbook, extraction configuration, and
-test suite that produced it. When any of those change, the affected test suite MUST be re-run and
-the refreshed report committed alongside the tool. A stale report silently describes a
-model that no longer exists. Ship a reference report with the tool and treat a diff
-against it as a regression signal.
+A parity report is valid only for the exact workbook, extraction configuration and test
+suite that produced it. When any of them changes, the affected test suite MUST be re-run
+and the new report committed with the tool; a stale report describes a model that no
+longer exists. Ship a reference report with the tool and treat any diff against it as a
+regression signal.
 
 ---
 
 ## 3. First-divergence reporting convention
 
-When a run fails, the TXT names the **single most actionable starting point**: the
-*first* failing comparison in deterministic scan order (scenario order × cell-label
-order).
-
-The block MUST name the **first axis-point/scenario and the exact cell that diverged**,
-with enough to reproduce and localize:
+When a run fails, the TXT points to a single starting place: the *first* failing
+comparison in a deterministic order (scenario order, then cell-label order). The block
+MUST name the scenario and the exact cell, with enough detail to reproduce and localize
+the divergence:
 
 ```
 First divergence:
@@ -234,211 +230,243 @@ First divergence:
   rel_diff:  <rel_diff>
 ```
 
-**Why first, and why deterministic.** Because the scenario suite and the cell-label order
-are fixed and reproducible, "first divergence" is stable across runs on the same inputs:
-the same bug surfaces at the same coordinate every time, so an engineer jumps straight to
-one scenario + one cell instead of triaging thousands of rows. A conforming tool provides
-at least this deterministic first-divergence pointer, and MAY additionally list all
-failures ranked by descending absolute difference to surface the largest divergence.
+**Why first, and why deterministic.** The scenario order and cell-label order are fixed,
+so the same bug surfaces at the same scenario and cell on every run with the same inputs.
+An engineer starts from one scenario and one cell instead of triaging thousands of rows.
+This is the localization that differential testing promises (§0). A conforming tool
+provides at least this pointer, and MAY also list all failures ranked by descending
+`abs_diff` to surface the largest divergence.
 
 ---
 
 ## 4. Structural pre-flight checks (fail fast, before any scenario)
 
-These run before the test suite and separate distinct failure causes, so a green run means
-what it says. All three are required.
+These checks run before any scenario. Each rules out a different cause of failure, so a
+passing run means what it says. All three are required.
 
-1. **Path / package verification.** The workbook and the generated package must exist;
-   otherwise raise immediately with a regeneration hint. No test run starts against missing
-   inputs.
+1. **Path and package check.** The workbook and the generated package must exist. If
+   either is missing, stop immediately with a hint for regenerating it (exit code `2`,
+   §2.3); no scenario runs against missing inputs.
 2. **Staleness check.** If the workbook is newer than the SUT's embedded snapshot of the
-   model's constants, flag it: a later diff could be a staleness artifact rather than a
-   codegen bug. This SHOULD be escalated to a content-hash comparison that **hard-fails**
-   on mismatch, because a warn-only gate can let a real drift through unnoticed.
-3. **Binding-cell verification.** Assert that the SUT's input setters and output readers
-   target exactly the cell addresses the test suite declares, before comparing any values.
-   This **separates binding-correctness from calculation-correctness**: without it, a
-   wrong-cell binding bug can be masked when the wrong cell's default happens to equal the
-   test value. A conforming tool MUST verify its input/output cell bindings before
-   trusting a passing calculation.
+   model's constants, flag it: a later diff may come from the stale snapshot rather than
+   from a code-generation bug. The check SHOULD compare content hashes and **fail hard**
+   on a mismatch, because a warning can be ignored and let real drift through (§8).
+3. **Binding-cell check.** Before comparing any values, assert that the SUT's input
+   setters and output readers target exactly the cell addresses the test suite declares,
+   after address normalization (§9.1). This separates binding correctness from
+   calculation correctness: without it, a setter bound to the wrong cell can go
+   unnoticed whenever that cell's default happens to equal the test value. A conforming
+   tool MUST verify its input and output bindings before trusting a passing calculation.
 
 ---
 
 ## 5. Coverage design (what the test suite must exercise)
 
-The comparison contract is only as strong as the input domain it is quantified over. The
-standard test suite is built from four scenario groups:
+The comparison rule (§1) proves parity only on the inputs the test suite actually runs.
+The standard test suite has four scenario groups:
 
-- **Canonical scenarios**: the tool's headline configurations (e.g. baseline + each
-  named shock across each modeled entity). Anchors the test suite to real, meaningful cases.
-- **Single-axis isolation**: perturb exactly one parameter around canonical, so a break
-  shows up cleanly in the per-axis pass-rate table.
-- **Full categorical factorial**: the Cartesian product of the categorical axes, to
-  catch 2- and 3-way interactions single-axis scenarios cannot reach.
-- **Boundary coverage**: the endpoints of any recursion/time dimension (the first and
-  last periods, not just an interior one), where off-by-one and boundary bugs live.
+- **Canonical scenarios:** the tool's headline configurations (e.g. baseline plus each
+  named shock for each modeled entity). They anchor the test suite to real cases.
+- **Single-axis isolation:** change exactly one parameter from a canonical scenario, so a
+  break shows up cleanly in the per-axis pass-rate table (§2.2).
+- **Full categorical factorial:** every combination of the categorical axes, to catch 2-
+  and 3-way interactions that single-axis scenarios cannot reach.
+- **Boundary coverage:** the first and last periods of any recursion or time dimension,
+  not just interior ones, where off-by-one and boundary bugs live.
 
-**Mandatory: the error and boundary domain.** A happy-path-only numeric test suite is
-the *weakest* differential test: divergences cluster at the edges, and the edges are
-exactly what a well-formed-inputs test suite excludes. A conforming test suite MUST include an
-**error/boundary scenario group** that drives every reachable error-return path and domain
-edge, e.g. out-of-range dispatch indices, unknown lookup keys (`#N/A`),
-denominator-zeroing inputs (`#DIV/0!`), never-firing / always-firing triggers, and
-non-integer inputs that hit truncation. This is what makes error-class equality (§1.3)
-actually *exercised* rather than merely defined.
+**Mandatory: the error and boundary domain.** A test suite of well-formed inputs only is
+the *weakest* differential test: divergences cluster at the edges, and well-formed inputs
+exclude the edges. A conforming test suite MUST include an **error/boundary scenario
+group** that drives every reachable error path and domain edge, for example:
+
+- out-of-range dispatch indices;
+- unknown lookup keys (`#N/A`);
+- inputs that zero a denominator (`#DIV/0!`);
+- triggers that never fire and triggers that always fire;
+- non-integer inputs that hit truncation.
+
+This group is what actually *exercises* error-class equality (§1.3), rather than merely
+defining it.
 
 ---
 
 ## 6. Applying the standard to Q-CRAFT v2
 
-Q-CRAFT (Quantitative Climate Risk Assessment Fiscal Tool; Batini et al., 2024) is an
-IMF FAD workbook with 100+ country datasets and rich scenario logic. The standard
-applies without change to its **contract**; only the **tool-specific map** changes.
+Q-CRAFT (Quantitative Climate Risk Assessment Fiscal Tool; Batini et al., 2024) is an IMF
+Fiscal Affairs Department workbook with 100+ country datasets and rich scenario logic.
+The **contract** of this standard applies unchanged; only the **tool-specific map** is
+new.
 
-**Held constant (do not re-derive per tool):**
+**Held constant across tools (do not re-derive):**
 
-- The precision policy of §1 verbatim: same hybrid `atol = 1e-6` / `rtol = 1e-12` gate,
-  same comparison ladder, same error-class / blank / `NaN` rules. Keeping this identical
-  is what makes a Q-CRAFT parity report comparable to any other.
-- The two-file parity-report convention (§2), the 100% bar and exit codes (§2.3), the
-  first-divergence block (§3), and the three pre-flight checks (§4).
+- the precision policy of §1, verbatim: the same hybrid gate (`atol = 1e-6`,
+  `rtol = 1e-12`), comparison ladder, and error-class, blank and `NaN` rules. This is
+  what makes a Q-CRAFT parity report comparable to any other;
+- the two-file report (§2), the 100% bar and exit codes (§2.3), the first-divergence
+  block (§3), and the three pre-flight checks (§4).
 
-**Re-specified per tool (the tool-specific work):**
+**Specified per tool:**
 
-- **Named-range / binding map**: Q-CRAFT's input and output cells and their typed input
-  shape. Verify them via the binding-cell check (§4.3) before trusting results.
-- **Scenario axes**: Q-CRAFT's categorical axes (country, climate-shock type/severity,
-  horizon) and continuous baselines, plus the mandatory error/boundary group (§5). Country
-  lookup is a core Q-CRAFT mechanism, so that group includes unknown-country `#N/A`
+- **Binding map:** the named ranges and cells for Q-CRAFT's inputs and outputs, and each
+  input's typed shape. Verify them with the binding-cell check (§4.3) before trusting
+  results.
+- **Scenario axes:** the categorical axes (country, climate-shock type and severity,
+  horizon), the continuous baselines, and the mandatory error/boundary group (§5).
+  Country lookup is central to Q-CRAFT, so that group includes unknown-country `#N/A`
   scenarios.
-- **Output cell set**: the indicator/threshold and ratio-path cells Q-CRAFT reports.
+- **Output cell set:** the indicator, threshold and ratio-path cells Q-CRAFT reports.
 
-Because Q-CRAFT loads 100+ country datasets, expect a large scenario count; the report
-convention (per-axis tables, first-divergence, CSV grouping) is designed to stay readable
-at that size and needs no structural change.
+With 100+ countries, expect a large scenario count. The report format (per-axis tables,
+first divergence, groupable CSV) is built to stay readable at that size and needs no
+structural change.
 
 ## 7. Applying the standard to DDT
 
-DDT (the second target tool named in TEA-643) inherits the identical contract. The same
-partition applies: **hold constant** the precision policy, report convention, acceptance
-bar, first-divergence rule, and pre-flight checks; **re-specify** only the binding map,
-the scenario axes (including the error/boundary group), and the output cell set for DDT's
-workbook. If DDT's output includes categorical/classification cells (not just numerics),
-those are handled by ladder rule 3 (non-coercible → typed equality); the standard already
-covers non-numeric outputs, so no new comparison rule is needed; only DDT's set of valid
-categorical values must be enumerated in its scenario design.
+DDT, the second target tool, uses the same contract and the same split. Hold constant
+the precision policy, report format, acceptance bar, first-divergence rule and pre-flight
+checks. Specify only DDT's binding map, scenario axes (including the error/boundary
+group) and output cell set.
 
-**Conformance test for either tool:** a reviewer can confirm DDT/Q-CRAFT validation is "to
-standard" by checking that (a) `atol` is `1e-6`, `rtol` is `1e-12`, and both are
-centralized, (b) the comparison ladder
-matches §1.2 in order, (c) both report files exist with the §2 columns/sections, (d) the
-TXT prints a 100% acceptance bar and the process exit code honors it, (e) a forced failure
-produces a well-formed first-divergence block, (f) all three pre-flight checks run, and
-(g) the test suite includes an error/boundary group.
+If DDT outputs categorical or classification cells, ladder rule 3 (not numeric-coercible,
+so typed equality) already covers them, and no new comparison rule is needed. DDT's
+scenario design only has to enumerate the valid categorical values.
+
+For both tools, the conformance checklist at the end of this standard is the review.
 
 ---
 
 ## 8. What a green "100% PASS" does NOT prove
 
-Documented so that each tool designs these in rather than discovering them later:
+A pass proves parity only within the scope of the run. Design against these gaps from
+the start:
 
-- **Untested input domain.** Parity is only quantified over the scenarios in the test suite. A
-  100% bar on happy-path inputs proves "matches Excel on nice inputs," not "matches Excel."
-  §5's error/boundary group is the mitigation and is mandatory.
-- **Incidental error equality.** If error comparison rides on string identity rather than
-  typed equality (§1.3), it is unverified until an error path actually runs. Make it
+- **Untested inputs.** Parity holds only for the scenarios that ran. A 100% pass on
+  well-formed inputs proves "matches Excel on well-formed inputs", not "matches Excel".
+  The mandatory error/boundary group (§5) is the mitigation.
+- **Incidental error equality.** If errors are compared by string identity rather than
+  typed class (§1.3), the comparison is unverified until an error path runs. Make it
   explicit and exercise it.
-- **Warn-only staleness.** A staleness *warning* (§4.2) can be ignored; a real
-  workbook/snapshot drift can then be absorbed silently. Escalate to a content hash + hard
-  fail.
-- **Environment drift.** The reference report's Python/Excel environment should be recorded
-  and, ideally, reproduced; parity can be environment-sensitive at the last bits.
+- **Warn-only staleness.** A staleness warning (§4.2) can be ignored, so real
+  workbook/snapshot drift passes silently. Compare content hashes and fail hard.
+- **Environment drift.** Parity can depend on the environment in the last bits. Record
+  the Python and Excel environment of the reference report and, ideally, reproduce it.
 
 ---
 
 ## 9. Harness boundary rules
 
 Values that cross the harness boundary (cell addresses used for lookups, and input values
-written to the golden master and the SUT) must be normalized or resolved the same way on
-both sides, or the comparison measures the harness rather than the model.
+written to both oracles) must be normalized or resolved the same way for both oracles.
+Otherwise the comparison tests the harness, not the model.
 
 ### 9.1 Address-key normalization
 
-`excel-grapher` stores sheet-qualified addresses in canonical form (e.g. `'Discrete Risks'!H2`). Human-authored binding keys and graph `leaf_keys()` may differ in quoting but normalize to the same form via `normalize_cell_type_env_key()` (constraint matching) and `normalize_key()` (graph lookup). Harnesses and audits must normalize before comparing config addresses to graph keys. See [issue #51](https://github.com/Teal-Insights/extraction-pipeline-template/issues/51).
+`excel-grapher` stores sheet-qualified addresses in canonical form (e.g.
+`'Discrete Risks'!H2`). Human-authored binding keys and graph `leaf_keys()` may quote
+sheet names differently but normalize to the same form: `normalize_cell_type_env_key()`
+for constraint matching and `normalize_key()` for graph lookup. Harnesses and audits must
+normalize before comparing configured addresses to graph keys, using `normalize_key` /
+`parse_address` before graph lookups and `xlwings` writes, never a naive
+`split("!", 1)`. See [issue #51](https://github.com/Teal-Insights/extraction-pipeline-template/issues/51).
 
 ### 9.2 Workbook-exact label resolution
 
-Scenario matrices and exported APIs naturally use clean logical values (`"High"`, `"Real interest rate"`). Many workbooks branch with **exact string equality** on reference label cells (e.g. `IF($B$2=$B$9, …)`). If differential harnesses write logical strings to public input cells instead of the workbook's exact label literals, formulas can silently fall through to `""` and produce `#VALUE!` on later projection years, while parity still passes when both oracles error the same way. This is distinct from address-key normalization (§9.1).
+Scenario matrices and exported APIs use clean logical values (`"High"`,
+`"Real interest rate"`). Many workbooks branch on **exact string equality** with
+reference label cells (e.g. `IF($B$2=$B$9, …)`). If a harness writes the logical string
+instead of the workbook's exact label, formulas can silently fall through to `""` and
+produce `#VALUE!` in later projection years. Parity still passes, because both oracles
+fail the same way: the matched-error case of §1.3.
 
-Treat **workbook reference label cells** as the source of truth for values written to public input cells. Logical scenario ids and API parameter names may stay human-readable; **Excel-facing writes must match reference literals character-for-character** (including trailing spaces and suffixes like `(a)`).
+**Workbook reference label cells are the source of truth for values written to public
+input cells.** Scenario ids and API parameter names may stay human-readable, but every
+Excel-facing write must match the reference literal character for character, including
+trailing spaces and suffixes such as `(a)`.
 
-Label-resolution checklist (workbook-neutral):
+Workbook-neutral procedure:
 
-1. **Discover reference labels**: Identify cells the workbook uses in IF/MATCH/CHOOSE guards for each public enum input. Sheet and range names are project-specific.
-2. **Audit exact literals**: Record values with `repr()`; do not assume trimmed or canonical spellings.
-3. **Align binding enum domains**: `domain.enum.values` on each public input must use those exact strings, not cleaned-up scenario names.
-4. **Resolve at the harness boundary**: Scenario definitions keep logical values; a small resolver maps logical → workbook-exact immediately before golden/graph `set_inputs`. Compare with `.strip()` (and prefix rules for suffix variants like `"Real interest rate"` → `"Real interest rate (a)"`); **write the raw workbook string**.
-5. **Normalize only internally**: Block lookups, dict keys, and test ids may strip; public input writes may not until the source workbook is corrected.
-6. **Label-resolution test**: Assert every scenario value for each enum public input resolves to a loaded workbook label, and that every binding enum value appears among reference labels. See [`tests/differential/workbook_labels.py`](https://github.com/Teal-Insights/qcraft-extraction-pipeline/blob/main/tests/differential/workbook_labels.py) in the Q-CRAFT extraction pipeline.
+1. **Find the reference labels.** Identify the cells the workbook uses in
+   IF/MATCH/CHOOSE guards for each public enum input. Sheet and range names are
+   project-specific.
+2. **Record exact literals.** Capture each value with `repr()`; do not assume trimmed or
+   canonical spellings.
+3. **Align enum domains.** `domain.enum.values` on each public input must use those exact
+   strings, not cleaned-up scenario names.
+4. **Resolve at the harness boundary.** Scenarios keep logical values. A small resolver
+   maps each logical value to its workbook-exact label immediately before the golden and
+   graph `set_inputs` calls, matching with `.strip()` plus prefix rules for suffix
+   variants (`"Real interest rate"` → `"Real interest rate (a)"`). **Write the raw
+   workbook string.**
+5. **Normalize only internally.** Block lookups, dict keys and test ids may strip
+   whitespace; public input writes may not, until the source workbook is corrected.
+6. **Test label resolution.** Assert that every scenario value for each enum public input
+   resolves to a loaded workbook label, and that every binding enum value appears among
+   the reference labels. Example:
+   [`tests/differential/workbook_labels.py`](https://github.com/Teal-Insights/qcraft-extraction-pipeline/blob/main/tests/differential/workbook_labels.py)
+   in the Q-CRAFT extraction pipeline.
 
 ---
 
 ## Conformance checklist: is a harness "to standard"?
 
-A reviewer confirms a differential harness for Q-CRAFT v2, DDT, or any future Excel→Python
-target conforms to this standard by verifying every item below in one pass. Each item is a
-property to *check on a finished harness*, not a build step; the `(§x)` back-reference names
-the section it enforces. Any unchecked box = not conformant.
+A reviewer checks a finished harness (for Q-CRAFT v2, DDT or any other Excel-to-Python
+target) against every item below in one pass. Each item is a property of the harness,
+not a build step, and names the section it enforces. Any unchecked item means the
+harness does not conform.
 
 ### Precision contract (§1)
 
-- [ ] `atol` is `1e-6` and `rtol` is `1e-12`, each defined **once** as a named constant and
-  threaded as configuration, not inlined at any comparison site (§1.1).
-- [ ] The pass/fail gate is the **hybrid** rule of §1.1 (pass iff `abs_diff <= atol` or
-  `rel_diff <= rtol`), evaluated on the same `rel_diff` written to the report; the relative
-  branch never decides a zero-golden comparison (§1.1).
-- [ ] The comparison ladder matches §1.2 **in order**: blank → error-class → NaN/non-finite →
-  tolerance, first-match-wins, with `None`/non-finite checked before the arithmetic (§1.2).
-- [ ] Errors compare by **typed class** (`#DIV/0!` ≠ `#N/A`), via normalized typed error values
-  rather than incidental string identity (§1.3).
-- [ ] A matched error on a scenario without `expects_error_values=True` fails the run and is
-  listed in the report; any `--allow-matched-errors` escape hatch is opt-in and absent from
+- [ ] `atol = 1e-6` and `rtol = 1e-12`, each defined **once** as a named constant and
+  passed as configuration, never inlined at a comparison site (§1.1).
+- [ ] The gate is the **hybrid** rule (pass iff `abs_diff <= atol` or
+  `rel_diff <= rtol`), computed from the same `rel_diff` written to the report; a zero
+  golden value is decided by the absolute bound alone (§1.1).
+- [ ] The comparison ladder matches §1.2 **in order**: blank → error class →
+  `NaN`/non-finite → tolerance, first match wins (§1.2).
+- [ ] Errors compare by **typed class** (`#DIV/0!` ≠ `#N/A`) after normalization to typed
+  error values, not by incidental string identity (§1.3).
+- [ ] A matched error in a scenario without `expects_error_values=True` fails the run and
+  is listed in the report; any `--allow-matched-errors` flag is opt-in and absent from
   CI (§1.3).
-- [ ] Blank rules hold: both blank → pass; exactly one side blank → fail (§1.4).
-- [ ] NaN/non-finite are handled before the arithmetic: two `NaN` → equal, `±inf` matches only
-  its exact counterpart (§1.4).
-- [ ] A per-scenario exception is contained as a **failing** comparison (not an aborted test run),
-  with oracle values replaced by the exception class+message (§1.5).
+- [ ] Blanks: both blank → pass; exactly one side blank → fail (§1.4).
+- [ ] `NaN` and non-finite values are handled before the arithmetic: two `NaN`s are
+  equal; `±inf` matches only the same infinity (§1.4).
+- [ ] An exception in one scenario becomes a **failing** comparison per output cell, with
+  the exception class and message as oracle values, and does not abort the run (§1.5).
 
-### Report & result (§2–§3)
+### Report and result (§2–§3)
 
-- [ ] **Both** report files exist: a CSV with the §2.1 columns (one row per (scenario, cell),
-  groupable single-axis ids) and a TXT with the §2.2 sections in order (§2.1–§2.2).
-- [ ] The TXT prints `Acceptance bar: 100.00%`, the process **exit code** honors the bar
-  (`0` pass / `1` fail / `2` prerequisite missing), and CI blocks on any non-`PASS` (§2.3).
-- [ ] A forced failure produces a **well-formed, deterministic first-divergence block**: first
-  failure in scenario × cell-label order, with reproduce/localize fields (§3).
-- [ ] The shipped **reference report** matches the current workbook, extraction config, and
-  test suite (it is not stale) (§2.4).
+- [ ] **Both** report files exist: the CSV has the §2.1 columns, one row per comparison
+  and groupable single-axis ids; the TXT has the §2.2 sections in order (§2.1–§2.2).
+- [ ] The TXT prints `Acceptance bar: 100.00%`, the exit code enforces it (`0` pass,
+  `1` fail, `2` prerequisite missing), and CI blocks on any non-`PASS` (§2.3).
+- [ ] A forced failure produces a **well-formed, deterministic first-divergence block**:
+  the first failure in scenario order, then cell-label order, with every field needed to
+  reproduce and localize it (§3).
+- [ ] The shipped **reference report** matches the current workbook, extraction
+  configuration and test suite (§2.4).
 
-### Pre-flight, harness boundary, coverage, and per-tool map (§4–§7, §9)
+### Harness wiring and coverage (§4, §5, §9)
 
-- [ ] All **three pre-flight checks** run before any scenario: path/package verification,
-  staleness (content-hash **hard-fail**), and binding-cell verification (§4).
-- [ ] Sheet-qualified addresses are normalized with `normalize_key` / `parse_address` at harness
-  boundaries before graph lookup or xlwings writes, not compared or split with naive
+- [ ] All **three pre-flight checks** run before any scenario: path and package,
+  staleness (content-hash **hard-fail**), and binding cells (§4).
+- [ ] Sheet-qualified addresses are normalized with `normalize_key` / `parse_address`
+  before graph lookups and `xlwings` writes, never compared or split with a naive
   `split("!", 1)` (§9.1).
-- [ ] Enum public input writes use **workbook-exact reference label strings**: logical scenario
-  values are resolved at the harness boundary, not trimmed or canonicalized on write
-  (§9.2).
-- [ ] The test suite includes the canonical, single-axis, full-factorial, and boundary groups (§5).
-- [ ] The test suite includes an **error/boundary group** that actually *exercises* error-class
-  equality: reachable error-return paths and domain edges, not happy-path only (§5).
-- [ ] The binding map, scenario axes, and output cell set are the **tool's own**; for DDT the
-  valid categorical/classification values are enumerated (handled by ladder rule 3, no new
-  comparison rule) (§6/§7).
+- [ ] Enum public input writes use **workbook-exact reference labels**; logical values
+  are resolved at the harness boundary, not trimmed or canonicalized on write (§9.2).
+- [ ] The test suite includes the canonical, single-axis, full-factorial and boundary
+  groups (§5).
+- [ ] The test suite includes an **error/boundary group** that actually *exercises*
+  error-class equality through reachable error paths and domain edges (§5).
+
+### Per-tool map (§6–§7)
+
+- [ ] The binding map, scenario axes and output cell set are the **tool's own**; for
+  DDT, the valid categorical values are enumerated (ladder rule 3 covers them, so no new
+  comparison rule is needed) (§6–§7).
 
 ### Limitations designed against (§8)
 
-- [ ] The Python/Excel **environment is recorded** so parity is reproducible at the last bits
-  (§8).
+- [ ] The Python and Excel **environment is recorded**, so parity is reproducible in the
+  last bits (§8).
