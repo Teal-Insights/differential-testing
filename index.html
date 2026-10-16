@@ -322,7 +322,7 @@
     <p class="subtitle">Differential testing as the validation standard for reverse-engineered Excel models</p>
     <div class="cover-meta">
       <span><strong>Author</strong>Teal Insights</span>
-      <span><strong>Date</strong>August 24, 2026</span>
+      <span><strong>Date</strong>October 15, 2026</span>
     </div>
   </div>
   <div class="draft-banner">Draft for internal review</div>
@@ -565,9 +565,8 @@
     <p>Differential testing governs all of Teal Insights' Excel reverse-engineering work:</p>
     <ul>
       <li><strong>LIC DSF Scenario Tool</strong> (<a href="https://github.com/Teal-Insights/licdsf-scenario-tool">licdsf-scenario-tool</a>): an open-source scenario-analysis tool for the IMF and World Bank Low-Income Country Debt Sustainability Framework, built for the Uganda Ministry of Finance. Every number the tool presents is verified against the official template. The banked evidence covers 132 scenarios plus the baseline across three workbook variants: 47,481 live-Excel comparisons with zero unexplained divergences, restore-path integrity confirmed after every mutation cycle, and a generated parity report that ships with the tool so a skeptic can rerun the evidence.</li>
-      <li><strong>py-lic-dsf</strong> (<a href="https://github.com/Teal-Insights/py-lic-dsf">py-lic-dsf</a>): the standalone Python library track for the LIC DSF itself, reproducing the template's stress-test indicator outputs under the same golden-master validation standard.</li>
-      <li><strong>py-q-craft</strong> (<a href="https://github.com/Teal-Insights/py-q-craft">py-q-craft</a>): the Python library generated from the IMF's Quantitative Climate Risk Assessment Fiscal Tool (Batini et al., 2024), with more than one hundred country datasets. Its full differential run compares 366,588 outputs across every public function of the library, and has already caught and localized release-blocking defects.</li>
-      <li><strong>py-tiny-dsa</strong> (<a href="https://github.com/Teal-Insights/py-tiny-dsa">py-tiny-dsa</a>): the standalone Python library generated from Tiny DSA, a compact debt sustainability model built deliberately to exercise Excel's most hazardous patterns (dynamic references, cross-sheet lookups, time recursion). It passed all 1,770 output comparisons against live Excel, with the underlying arithmetic agreeing bit for bit.</li>
+      <li><strong>lic-dsf</strong> (<a href="https://github.com/Teal-Insights/lic-dsf-2025-08-12">lic-dsf-2025-08-12</a>): an unofficial Python implementation of the August 12, 2025 vintage of the LIC DSF template, checked against the official workbook by differential testing. A companion whitepaper explains how it was built (<a href="https://github.com/Teal-Insights/py-lic-dsf-whitepaper">Emery et al., 2026</a>).</li>
+      <li><strong>py-q-craft</strong> (<a href="https://github.com/Teal-Insights/py-q-craft">py-q-craft</a>): the Python library generated from the IMF's Quantitative Climate Risk Assessment Fiscal Tool (Batini et al., 2024), with more than one hundred country datasets. Its differential test run covers every public function of the library and has already caught and localized release-blocking defects.</li>
     </ul>
   </section>
 
@@ -582,6 +581,7 @@
     <h2>References</h2>
     <ul class="refs">
       <li>McKeeman, W. M. (1998). "Differential Testing for Software." <em>Digital Technical Journal</em>, 10(1).</li>
+      <li>Emery, T., Smith, C. C., Ninsin, K., and Parakala, S. (2026). "Making Sense of Spreadsheet Sprawl in a Large Financial Model (the IMF/World Bank LIC-DSF)." Teal Insights working draft. <a href="https://github.com/Teal-Insights/py-lic-dsf-whitepaper">github.com/Teal-Insights/py-lic-dsf-whitepaper</a>.</li>
       <li>Batini, N., et al. (2024). Q-CRAFT: Quantitative Climate Risk Assessment Fiscal Tool. International Monetary Fund, Fiscal Affairs Department.</li>
     </ul>
   </section>
@@ -590,7 +590,7 @@
 
   <footer>
     <span>Teal Insights</span>
-    <span>Draft for internal review · August 2026</span>
+    <span>Draft for internal review · October 2026</span>
   </footer>
 
 </div>
